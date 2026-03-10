@@ -7,9 +7,9 @@ export default function RSVPTable({ guests }: any) {
     await deleteDoc(doc(db, "rsvps", id));
   };
 
-  const toggleAttendance = async (id: string, current: boolean) => {
+  const toggleAttendance = async (id: string, current: string) => {
     await updateDoc(doc(db, "rsvps", id), {
-      attending: !current
+      attendance: current === "yes" ? "no" : "yes"
     });
   };
 
@@ -54,13 +54,16 @@ export default function RSVPTable({ guests }: any) {
 
               <td style={td}>{g.name}</td>
               <td style={td}>{g.mealPreference}</td>
-              <td style={td}>{g.attending === true ? "Yes" : "No"}</td>
+
+              <td style={td}>
+                {g.attendance === "yes" ? "Yes" : "No"}
+              </td>
 
               <td style={td}>
 
                 <button
                   style={toggleBtn}
-                  onClick={() => toggleAttendance(g.id, g.attending)}
+                  onClick={() => toggleAttendance(g.id, g.attendance)}
                 >
                   Toggle
                 </button>

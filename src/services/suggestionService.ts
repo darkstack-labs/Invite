@@ -1,12 +1,15 @@
-import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "@/firebase";
 
-export const submitSuggestion = async (data: {
+interface SuggestionData {
   name: string;
-  message: string;
-}) => {
+  entryId: string;
+  suggestion: string;
+}
+
+export const submitSuggestion = async (data: SuggestionData) => {
   await addDoc(collection(db, "suggestions"), {
     ...data,
-    createdAt: serverTimestamp()
+    timestamp: serverTimestamp(),
   });
 };

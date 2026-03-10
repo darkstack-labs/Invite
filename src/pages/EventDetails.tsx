@@ -22,11 +22,11 @@ const highlights = [
 
 const schedule = [
   { time: '4:00 PM', event: 'Grand Entry & Welcome', icon: Sparkles },
-  { time: '4:30 PM', event: 'Opening Ceremony', icon: Crown },
-  { time: '5:00 PM', event: 'Games & Activities', icon: Star },
-  { time: '6:00 PM', event: 'Dinner & Refreshments', icon: Utensils },
-  { time: '7:00 PM', event: 'Dance Floor Opens', icon: Music },
-  { time: '8:30 PM', event: 'Grand Farewell', icon: Sparkles },
+  { time: '4:15 PM', event: 'Opening Ceremony', icon: Crown },
+  { time: '4:45 PM', event: 'Games & Activities', icon: Star },
+  { time: '5:30 PM', event: 'Dinner & Refreshments', icon: Utensils },
+  { time: '6:30 PM', event: 'Dance Floor Opens', icon: Music },
+  { time: '8:00 PM', event: 'Grand Farewell', icon: Sparkles },
 ];
 
 const TimelineItem = ({ slot, index }: { slot: typeof schedule[0]; index: number }) => {
