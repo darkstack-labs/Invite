@@ -1,13 +1,16 @@
-import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "@/firebase";
 
-export const submitSong = async (data: {
+interface SongRequest {
   name: string;
-  songTitle: string;
+  entryId: string;
+  songName: string;
   artist: string;
-}) => {
+}
+
+export const submitSongRequest = async (data: SongRequest) => {
   await addDoc(collection(db, "songs"), {
     ...data,
-    createdAt: serverTimestamp()
+    timestamp: serverTimestamp(),
   });
 };

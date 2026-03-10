@@ -20,6 +20,8 @@ import PremiumHeading from '@/components/PremiumHeading';
 interface TabletRulesLayoutProps {
   rules: string[];
   formatRule: (rule: string) => React.ReactNode;
+  acceptRules: () => Promise<void> | void;
+  accepted: boolean;
 }
 
 const ruleIcons = [
@@ -37,7 +39,7 @@ const ruleIcons = [
   DollarSign,
 ];
 
-const TabletRulesLayout = ({ rules, formatRule }: TabletRulesLayoutProps) => {
+const TabletRulesLayout = ({ rules, formatRule, acceptRules, accepted  }: TabletRulesLayoutProps) => {
   const [checkedRules, setCheckedRules] = useState<boolean[]>(new Array(rules.length).fill(false));
   const [expandedRule, setExpandedRule] = useState<number | null>(null);
   const [signed, setSigned] = useState(false);
@@ -50,8 +52,13 @@ const TabletRulesLayout = ({ rules, formatRule }: TabletRulesLayoutProps) => {
     setCheckedRules(newChecked);
   };
 
-  const handleSign = () => {
-    setSigned(true);
+  const handleSign = async () => {
+    try {
+      await acceptRules();   // writes rulesAccepted to Firestore
+      setSigned(true);
+    } catch (e) {
+      console.error("Rules acceptance failed", e);
+    }
   };
 
   return (
@@ -226,7 +233,7 @@ const TabletRulesLayout = ({ rules, formatRule }: TabletRulesLayoutProps) => {
             <span className="text-lg text-gold font-display">Digital Signature</span>
           </div>
 
-          {!signed ? (
+          {!signed && !accepted ? (
             <motion.button
               disabled={!allChecked}
               onClick={handleSign}

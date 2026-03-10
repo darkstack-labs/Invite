@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import PageLayout from '@/components/PageLayout';
 import PremiumHeading from '@/components/PremiumHeading';
 import { motion, useInView, useScroll, useTransform } from 'framer-motion';
-import { ArrowLeft, Sparkles, Star, GlassWater, Wine, Salad, Drumstick, ChefHat, CakeSlice } from 'lucide-react';
+import { ArrowLeft, Sparkles, Star, GlassWater, Wine, Salad, Drumstick, ChefHat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDeviceType } from '@/hooks/useDeviceType';
 
@@ -95,15 +95,6 @@ const sections: MenuSection[] = [
       { name: 'Veg Manchurian', type: 'veg' },
       { name: 'Subz Dum Biryani', type: 'veg', isChefSpecial: true },
       { name: 'Hyderabadi Chicken Dum Biryani', type: 'nonveg', isChefSpecial: true },
-    ],
-  },
-  {
-    id: 'dessert',
-    title: 'Dessert',
-    subtitle: 'The sweet finale',
-    icon: <CakeSlice className="w-5 h-5" />,
-    items: [
-      { name: 'Tiramisu', type: 'veg', isChefSpecial: true },
     ],
   },
 ];

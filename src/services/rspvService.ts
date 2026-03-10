@@ -1,13 +1,25 @@
-import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/firebase";
 
-export const submitRSVP = async (data: {
+interface RSVPData {
   name: string;
-  attending: boolean;
-  guests: number;
-}) => {
-  await addDoc(collection(db, "rsvps"), {
+  entryId: string;
+  attendance: "yes" | "no";
+  mealPreference: "veg" | "nonveg";
+  dietary?: string;
+}
+
+export const submitRSVP = async (data: RSVPData) => {
+  const ref = doc(db, "rsvps", data.entryId);
+
+  await setDoc(ref, {
     ...data,
-    createdAt: serverTimestamp()
+    timestamp: serverTimestamp(),
   });
+};
+
+export const checkRSVP = async (entryId: string) => {
+  const ref = doc(db, "rsvps", entryId);
+  const snap = await getDoc(ref);
+  return snap.exists();
 };
