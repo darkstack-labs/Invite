@@ -109,3 +109,7 @@ export async function verifyGuestRequest(req, res) {
     return null;
   }
 }
+
+export function isApiError(error) {
+  return error && typeof error === "object" && "statusCode" in error;
+}
