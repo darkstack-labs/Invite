@@ -8,7 +8,7 @@ import { getFirestore } from "firebase-admin/firestore";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-function sanitizeEntryId(value: unknown): string {
+function sanitizeEntryId(value) {
   if (typeof value !== "string") return "";
 
   const digitsOnly = value.replace(/\D/g, "");
@@ -37,20 +37,20 @@ const serviceAccount = loadServiceAccount();
 const adminApp =
   getApps()[0] ??
   initializeApp({
-    credential: cert(serviceAccount as any),
+    credential: cert(serviceAccount),
   });
 
 export const adminAuth = getAuth(adminApp);
 export const adminDb = getFirestore(adminApp);
 
-export function sendJson(res: any, statusCode: number, payload: unknown) {
+export function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Cache-Control", "no-store");
   res.end(JSON.stringify(payload));
 }
 
-export function readJsonBody(req: any) {
+export function readJsonBody(req) {
   if (!req.body) return {};
 
   if (typeof req.body === "string") {
@@ -64,7 +64,7 @@ export function readJsonBody(req: any) {
   return req.body;
 }
 
-export async function verifyGuestRequest(req: any, res: any) {
+export async function verifyGuestRequest(req, res) {
   const authorizationHeader =
     req.headers.authorization || req.headers.Authorization;
 
