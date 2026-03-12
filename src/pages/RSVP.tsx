@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import PageLayout from '@/components/PageLayout'
-import PremiumHeading from '@/components/PremiumHeading'
+import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send,
   ArrowLeft,
@@ -13,202 +11,268 @@ import {
   IdCard,
   Music,
   MessageSquare
-} from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+
+import PageLayout from '@/components/PageLayout';
+import PremiumHeading from '@/components/PremiumHeading';
+import ConfettiEffect from '@/components/ConfettiEffect';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
-import { useAuth } from '@/contexts/AuthContext'
-import { toast } from 'sonner'
-import { useDeviceType } from '@/hooks/useDeviceType'
-import ConfettiEffect from '@/components/ConfettiEffect'
+} from '@/components/ui/select';
+import { useAuth } from '@/contexts/AuthContext';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { checkRSVP, submitRSVP } from '@/services/rspvService';
+import { submitSongRequest } from '@/services/songService';
+import { submitSuggestion } from '@/services/suggestionService';
 
-import { submitRSVP, checkRSVP } from '@/services/rspvService'
-import { submitSongRequest } from '@/services/songService'
-import { submitSuggestion } from '@/services/suggestionService'
+type Attendance = 'yes' | 'no';
+type Meal = 'veg' | 'nonveg';
 
-type Attendance = 'yes' | 'no'
-type Meal = 'veg' | 'nonveg'
+type RSVPFormData = {
+  attendance: Attendance | '';
+  mealPreference: Meal | '';
+  dietary: string;
+};
 
-type FormData = {
-  name: string
-  entryId: string
-  attendance: Attendance | ''
-  mealPreference: Meal | ''
-  dietary: string
-}
+type SongRequestForm = {
+  songName: string;
+  artist: string;
+};
 
 const RSVP = () => {
-  const navigate = useNavigate()
-  const { user } = useAuth()
-  const deviceType = useDeviceType()
+  const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
+  const deviceType = useDeviceType();
 
-  const [currentStep, setCurrentStep] = useState<number>(1)
-  const [showConfetti, setShowConfetti] = useState<boolean>(false)
-  const [isSubmitted, setIsSubmitted] = useState<boolean>(false)
-  const [activeTab, setActiveTab] = useState<'song' | 'suggestion'>('song')
+  const [currentStep, setCurrentStep] = useState(1);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [activeTab, setActiveTab] = useState<'song' | 'suggestion'>('song');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingSong, setIsSubmittingSong] = useState(false);
+  const [isSubmittingSuggestion, setIsSubmittingSuggestion] = useState(false);
 
-  const [formData, setFormData] = useState<FormData>({
-    name: user?.name || '',
-    entryId: user?.entryId || '',
+  const [formData, setFormData] = useState<RSVPFormData>({
     attendance: '',
     mealPreference: '',
     dietary: ''
-  })
-
-  const [songData, setSongData] = useState({
-    name: user?.name || '',
-    entryId: user?.entryId || '',
+  });
+  const [songData, setSongData] = useState<SongRequestForm>({
     songName: '',
     artist: ''
-  })
-
-  const [suggestionData, setSuggestionData] = useState({
-    name: user?.name || '',
-    entryId: user?.entryId || '',
-    suggestion: ''
-  })
-
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+  });
+  const [suggestion, setSuggestion] = useState('');
 
   useEffect(() => {
+    let isActive = true;
+
     const runCheck = async () => {
-      if (!user?.entryId) return
+      if (isLoading) {
+        return;
+      }
+
+      if (!user?.entryId) {
+        if (isActive) {
+          setIsCheckingStatus(false);
+        }
+        return;
+      }
+
+      setIsCheckingStatus(true);
 
       try {
-        const exists = await checkRSVP(user.entryId)
-        if (exists) setIsSubmitted(true)
-      } catch (err) {
-        console.error(err)
-      }
-    }
+        const exists = await checkRSVP(user.entryId);
 
-    runCheck()
-  }, [user])
+        if (isActive) {
+          setIsSubmitted(exists);
+        }
+      } catch (error) {
+        console.error(error);
+
+        if (isActive) {
+          toast.error('Unable to load your RSVP status right now.');
+        }
+      } finally {
+        if (isActive) {
+          setIsCheckingStatus(false);
+        }
+      }
+    };
+
+    runCheck();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isLoading, user?.entryId]);
 
   const handleNext = () => {
-    if (currentStep === 1 && (!formData.name || !formData.entryId)) {
-      toast.error('Please fill in your name and entry ID')
-      return
+    if (currentStep === 1 && !user?.name) {
+      toast.error('Your invite session is missing. Please sign in again.');
+      return;
     }
 
     if (currentStep === 2 && !formData.attendance) {
-      toast.error('Please select your attendance status')
-      return
+      toast.error('Please select your attendance status');
+      return;
     }
 
-    setCurrentStep(prev => Math.min(prev + 1, 3))
-  }
+    setCurrentStep((previousStep) => Math.min(previousStep + 1, 3));
+  };
 
   const handleBack = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1))
-  }
+    setCurrentStep((previousStep) => Math.max(previousStep - 1, 1));
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-    if (!formData.mealPreference || !formData.attendance) {
-      toast.error('Please complete the form')
-      return
+    if (!user) {
+      toast.error('Your invite session expired. Please sign in again.');
+      return;
     }
 
-    setIsSubmitting(true)
+    if (!formData.attendance) {
+      toast.error('Please complete the form');
+      return;
+    }
+
+    if (formData.attendance === 'yes' && !formData.mealPreference) {
+      toast.error('Please select your meal preference');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       await submitRSVP({
-        name: formData.name,
-        entryId: formData.entryId,
-        attendance: formData.attendance as Attendance,
-        mealPreference: formData.mealPreference as Meal,
-        dietary: formData.dietary ?? ''
-      })
+        name: user.name,
+        entryId: user.entryId,
+        attendance: formData.attendance,
+        mealPreference:
+          formData.attendance === 'yes' ? formData.mealPreference : null,
+        dietary: formData.dietary
+      });
 
-      setShowConfetti(true)
-      setIsSubmitted(true)
+      setShowConfetti(true);
+      setIsSubmitted(true);
+      toast.success('RSVP submitted successfully');
+    } catch (error) {
+      console.error(error);
 
-      toast.success('RSVP submitted successfully')
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to submit RSVP')
+      if (error instanceof Error && error.message === 'RSVP_ALREADY_SUBMITTED') {
+        setIsSubmitted(true);
+        toast.error('Your RSVP has already been submitted.');
+      } else {
+        toast.error('Failed to submit RSVP');
+      }
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
-  const handleSongSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSongSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-    if (!songData.songName || !songData.artist) {
-      toast.error('Please fill all song fields')
-      return
+    if (!user) {
+      toast.error('Your invite session expired. Please sign in again.');
+      return;
     }
+
+    if (!songData.songName.trim() || !songData.artist.trim()) {
+      toast.error('Please fill all song fields');
+      return;
+    }
+
+    setIsSubmittingSong(true);
 
     try {
-      await submitSongRequest(songData)
+      await submitSongRequest({
+        name: user.name,
+        entryId: user.entryId,
+        songName: songData.songName,
+        artist: songData.artist
+      });
 
-      toast.success('Song request submitted')
-
+      toast.success('Song request submitted');
       setSongData({
-        name: user?.name || '',
-        entryId: user?.entryId || '',
         songName: '',
         artist: ''
-      })
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to submit song request')
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to submit song request');
+    } finally {
+      setIsSubmittingSong(false);
     }
-  }
+  };
 
-  const handleSuggestionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSuggestionSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-    if (!suggestionData.suggestion) {
-      toast.error('Suggestion cannot be empty')
-      return
+    if (!user) {
+      toast.error('Your invite session expired. Please sign in again.');
+      return;
     }
+
+    if (!suggestion.trim()) {
+      toast.error('Suggestion cannot be empty');
+      return;
+    }
+
+    setIsSubmittingSuggestion(true);
 
     try {
-      await submitSuggestion(suggestionData)
+      await submitSuggestion({
+        name: user.name,
+        entryId: user.entryId,
+        suggestion
+      });
 
-      toast.success('Suggestion submitted')
-
-      setSuggestionData({
-        name: user?.name || '',
-        entryId: user?.entryId || '',
-        suggestion: ''
-      })
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to submit suggestion')
+      toast.success('Suggestion submitted');
+      setSuggestion('');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to submit suggestion');
+    } finally {
+      setIsSubmittingSuggestion(false);
     }
-  }
+  };
 
   const getVariant = () => {
-    if (deviceType === 'mobile') return 'mobile'
-    if (deviceType === 'tablet') return 'tablet'
-    return 'desktop'
-  }
+    if (deviceType === 'mobile') return 'mobile';
+    if (deviceType === 'tablet') return 'tablet';
+    return 'desktop';
+  };
 
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
         return (
-          <motion.div key='step1' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='space-y-5'>
+          <motion.div
+            key='step1'
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className='space-y-5'
+          >
             <div className='space-y-2'>
               <label className='text-gold text-sm font-medium flex items-center gap-2'>
                 <User className='w-4 h-4' /> Name *
               </label>
               <Input
-                value={formData.name}
+                value={user?.name ?? ''}
                 readOnly
                 disabled
                 className='bg-black/30 border-gold/30 text-champagne opacity-80 cursor-not-allowed'
@@ -220,47 +284,72 @@ const RSVP = () => {
                 <IdCard className='w-4 h-4' /> Entry ID *
               </label>
               <Input
-                value={formData.entryId}
+                value={user?.entryId ?? ''}
                 readOnly
                 disabled
                 className='bg-black/30 border-gold/30 text-champagne opacity-80 cursor-not-allowed'
               />
             </div>
           </motion.div>
-        )
+        );
 
       case 2:
         return (
-          <motion.div key='step2' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='space-y-5'>
+          <motion.div
+            key='step2'
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className='space-y-5'
+          >
             <label className='text-gold text-sm font-medium flex items-center gap-2'>
               <Calendar className='w-4 h-4' /> Will you attend? *
             </label>
 
             <Select
               value={formData.attendance}
-              onValueChange={v => setFormData({ ...formData, attendance: v as Attendance })}
+              onValueChange={(value) =>
+                setFormData((current) => ({
+                  ...current,
+                  attendance: value as Attendance,
+                  mealPreference:
+                    value === 'no' ? '' : current.mealPreference
+                }))
+              }
             >
               <SelectTrigger className='bg-black/30 border-gold/30 text-champagne'>
                 <SelectValue placeholder='Select response' />
               </SelectTrigger>
               <SelectContent className='bg-black border-gold/30'>
-                <SelectItem value='yes'>Yes, I'll be there</SelectItem>
-                <SelectItem value='no'>No, I can't make it</SelectItem>
+                <SelectItem value='yes'>Yes, I&apos;ll be there</SelectItem>
+                <SelectItem value='no'>No, I can&apos;t make it</SelectItem>
               </SelectContent>
             </Select>
           </motion.div>
-        )
+        );
 
       case 3:
         return (
-          <motion.div key='step3' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='space-y-5'>
+          <motion.div
+            key='step3'
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className='space-y-5'
+          >
             <label className='text-gold text-sm font-medium flex items-center gap-2'>
-              <UtensilsCrossed className='w-4 h-4' /> Meal Preference *
+              <UtensilsCrossed className='w-4 h-4' /> Meal Preference
+              {formData.attendance === 'yes' ? ' *' : ' (optional)'}
             </label>
 
             <Select
               value={formData.mealPreference}
-              onValueChange={v => setFormData({ ...formData, mealPreference: v as Meal })}
+              onValueChange={(value) =>
+                setFormData((current) => ({
+                  ...current,
+                  mealPreference: value as Meal
+                }))
+              }
             >
               <SelectTrigger className='bg-black/30 border-gold/30 text-champagne'>
                 <SelectValue placeholder='Select preference' />
@@ -274,15 +363,40 @@ const RSVP = () => {
             <Input
               placeholder='Dietary restrictions (optional)'
               value={formData.dietary}
-              onChange={e => setFormData({ ...formData, dietary: e.target.value })}
+              onChange={(event) =>
+                setFormData((current) => ({
+                  ...current,
+                  dietary: event.target.value
+                }))
+              }
               className='bg-black/30 border-gold/30 text-champagne'
             />
           </motion.div>
-        )
+        );
 
       default:
-        return null
+        return null;
     }
+  };
+
+  if (isLoading || isCheckingStatus) {
+    return (
+      <PageLayout showNav>
+        <div className='flex min-h-[calc(100dvh-5rem)] items-center justify-center px-4 py-6 text-gold'>
+          Loading your RSVP...
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <PageLayout showNav>
+        <div className='flex min-h-[calc(100dvh-5rem)] items-center justify-center px-4 py-6 text-gold'>
+          Redirecting to login...
+        </div>
+      </PageLayout>
+    );
   }
 
   if (isSubmitted) {
@@ -303,7 +417,7 @@ const RSVP = () => {
               <Check className='w-10 h-10 text-black' />
             </div>
 
-            <h2 className='text-2xl font-display text-gold mt-4'>You're All Set</h2>
+            <h2 className='text-2xl font-display text-gold mt-4'>You&apos;re All Set</h2>
             <p className='text-champagne/70'>Thank you for your RSVP</p>
           </motion.div>
 
@@ -332,21 +446,27 @@ const RSVP = () => {
                   <Input
                     placeholder='Song name'
                     value={songData.songName}
-                    onChange={e =>
-                      setSongData({ ...songData, songName: e.target.value })
+                    onChange={(event) =>
+                      setSongData((current) => ({
+                        ...current,
+                        songName: event.target.value
+                      }))
                     }
                   />
 
                   <Input
                     placeholder='Artist'
                     value={songData.artist}
-                    onChange={e =>
-                      setSongData({ ...songData, artist: e.target.value })
+                    onChange={(event) =>
+                      setSongData((current) => ({
+                        ...current,
+                        artist: event.target.value
+                      }))
                     }
                   />
 
-                  <Button type='submit' className='w-full'>
-                    Submit Song
+                  <Button type='submit' className='w-full' disabled={isSubmittingSong}>
+                    {isSubmittingSong ? 'Submitting...' : 'Submit Song'}
                   </Button>
                 </form>
               )}
@@ -355,17 +475,16 @@ const RSVP = () => {
                 <form onSubmit={handleSuggestionSubmit} className='space-y-3'>
                   <Textarea
                     placeholder='Your suggestion for the event'
-                    value={suggestionData.suggestion}
-                    onChange={e =>
-                      setSuggestionData({
-                        ...suggestionData,
-                        suggestion: e.target.value
-                      })
-                    }
+                    value={suggestion}
+                    onChange={(event) => setSuggestion(event.target.value)}
                   />
 
-                  <Button type='submit' className='w-full'>
-                    Submit Suggestion
+                  <Button
+                    type='submit'
+                    className='w-full'
+                    disabled={isSubmittingSuggestion}
+                  >
+                    {isSubmittingSuggestion ? 'Submitting...' : 'Submit Suggestion'}
                   </Button>
                 </form>
               )}
@@ -373,7 +492,7 @@ const RSVP = () => {
           </Card>
         </div>
       </PageLayout>
-    )
+    );
   }
 
   return (
@@ -432,7 +551,7 @@ const RSVP = () => {
         </div>
       </motion.div>
     </PageLayout>
-  )
-}
+  );
+};
 
-export default RSVP
+export default RSVP;

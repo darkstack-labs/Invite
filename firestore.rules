@@ -1,0 +1,272 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isNonEmptyString(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function isShortString(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+
+    function hasMatchingGuestEntry(entryId) {
+      return request.auth != null &&
+        request.auth.token.role == 'guest' &&
+        request.auth.token.entryId == entryId;
+    }
+
+    function isValidRsvp(entryId) {
+      return request.resource.data.keys().hasOnly([
+          'name',
+          'entryId',
+          'attendance',
+          'mealPreference',
+          'dietary',
+          'timestamp'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'name',
+          'entryId',
+          'attendance',
+          'mealPreference',
+          'timestamp'
+        ]) &&
+        request.resource.data.entryId == entryId &&
+        isNonEmptyString(request.resource.data.name, 80) &&
+        (request.resource.data.attendance == 'yes' ||
+          request.resource.data.attendance == 'no') &&
+        (request.resource.data.mealPreference == 'veg' ||
+          request.resource.data.mealPreference == 'nonveg') &&
+        request.resource.data.timestamp is timestamp &&
+        (!request.resource.data.keys().hasAny(['dietary']) ||
+          isShortString(request.resource.data.dietary, 250));
+    }
+
+    function isValidSongRequest() {
+      return request.resource.data.keys().hasOnly([
+          'name',
+          'entryId',
+          'songName',
+          'artist',
+          'timestamp'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'name',
+          'entryId',
+          'songName',
+          'artist',
+          'timestamp'
+        ]) &&
+        isNonEmptyString(request.resource.data.name, 80) &&
+        isNonEmptyString(request.resource.data.entryId, 20) &&
+        isNonEmptyString(request.resource.data.songName, 120) &&
+        isNonEmptyString(request.resource.data.artist, 120) &&
+        request.resource.data.timestamp is timestamp;
+    }
+
+    function isValidSuggestion() {
+      return request.resource.data.keys().hasOnly([
+          'name',
+          'entryId',
+          'suggestion',
+          'timestamp'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'name',
+          'entryId',
+          'suggestion',
+          'timestamp'
+        ]) &&
+        isNonEmptyString(request.resource.data.name, 80) &&
+        isNonEmptyString(request.resource.data.entryId, 20) &&
+        isNonEmptyString(request.resource.data.suggestion, 500) &&
+        request.resource.data.timestamp is timestamp;
+    }
+
+    function isValidBadge() {
+      return request.resource.data.keys().hasOnly([
+          'name',
+          'badgeText',
+          'color'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'name',
+          'badgeText',
+          'color'
+        ]) &&
+        isNonEmptyString(request.resource.data.name, 80) &&
+        isNonEmptyString(request.resource.data.badgeText, 80) &&
+        isNonEmptyString(request.resource.data.color, 40);
+    }
+
+    function isValidSelfNominationSubmission(entryId) {
+      return request.resource.data.keys().hasOnly([
+          'name',
+          'entryId',
+          'gender',
+          'categories',
+          'createdAt'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'name',
+          'entryId',
+          'gender',
+          'categories',
+          'createdAt'
+        ]) &&
+        request.resource.data.entryId == entryId &&
+        isNonEmptyString(request.resource.data.name, 80) &&
+        (request.resource.data.gender == 'Male' ||
+          request.resource.data.gender == 'Female') &&
+        request.resource.data.categories is list &&
+        request.resource.data.categories.size() > 0 &&
+        request.resource.data.categories.size() <= 5 &&
+        request.resource.data.categories.hasOnly([
+          'mostPopularMale',
+          'mostPopularFemale',
+          'bestMaleDuo',
+          'bestFemaleDuo',
+          'bestDancer'
+        ]) &&
+        request.resource.data.createdAt is timestamp;
+    }
+
+    function isValidVoteDocument(entryId, expectedTitle, expectedSelectionCount) {
+      return request.resource.data.keys().hasOnly([
+          'voteTitle',
+          'submittedByName',
+          'submittedByEntryId',
+          'selections',
+          'createdAt'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'voteTitle',
+          'submittedByName',
+          'submittedByEntryId',
+          'selections',
+          'createdAt'
+        ]) &&
+        request.resource.data.submittedByEntryId == entryId &&
+        request.resource.data.voteTitle == expectedTitle &&
+        isNonEmptyString(request.resource.data.submittedByName, 80) &&
+        request.resource.data.selections is list &&
+        request.resource.data.selections.size() == expectedSelectionCount &&
+        request.resource.data.createdAt is timestamp;
+    }
+
+    function isValidGamesEventDoc() {
+      return request.resource.id == 'THE WORST BATCH' &&
+        request.resource.data.keys().hasOnly([
+          'eventName',
+          'updatedAt',
+          'mostPopularMale',
+          'mostPopularFemale',
+          'bestMaleDuo',
+          'bestFemaleDuo',
+          'bestDancer'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'eventName',
+          'updatedAt'
+        ]) &&
+        request.resource.data.eventName == 'THE WORST BATCH' &&
+        request.resource.data.updatedAt is timestamp &&
+        (!request.resource.data.keys().hasAny(['mostPopularMale']) ||
+          (request.resource.data.mostPopularMale is list &&
+            request.resource.data.mostPopularMale.size() <= 100)) &&
+        (!request.resource.data.keys().hasAny(['mostPopularFemale']) ||
+          (request.resource.data.mostPopularFemale is list &&
+            request.resource.data.mostPopularFemale.size() <= 100)) &&
+        (!request.resource.data.keys().hasAny(['bestMaleDuo']) ||
+          (request.resource.data.bestMaleDuo is list &&
+            request.resource.data.bestMaleDuo.size() <= 100)) &&
+        (!request.resource.data.keys().hasAny(['bestFemaleDuo']) ||
+          (request.resource.data.bestFemaleDuo is list &&
+            request.resource.data.bestFemaleDuo.size() <= 100)) &&
+        (!request.resource.data.keys().hasAny(['bestDancer']) ||
+          (request.resource.data.bestDancer is list &&
+            request.resource.data.bestDancer.size() <= 100));
+    }
+
+    match /guests/{guestId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /rsvps/{entryId} {
+      allow get, list: if true;
+      allow create, update: if isValidRsvp(entryId);
+      allow delete: if true;
+    }
+
+    match /songRequests/{requestId} {
+      allow get, list: if true;
+      allow create: if isValidSongRequest();
+      allow update, delete: if false;
+    }
+
+    match /suggestions/{suggestionId} {
+      allow get, list: if true;
+      allow create: if isValidSuggestion();
+      allow update, delete: if false;
+    }
+
+    match /badges/{badgeId} {
+      allow get, list: if false;
+      allow create: if isValidBadge();
+      allow update, delete: if false;
+    }
+
+    match /SELF NOMINATION SUBMISSIONS/{entryId} {
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /GAMES EVENT CATEGORIES/{eventId} {
+      allow get, list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /CYS VOTES/{entryId} {
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /MPM VOTES/{entryId} {
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /MPF VOTES/{entryId} {
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /BMD VOTES/{entryId} {
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /BFD VOTES/{entryId} {
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /SWDBITP VOTES/{entryId} {
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

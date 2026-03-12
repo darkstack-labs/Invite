@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import CountdownTimer from '@/components/CountdownTimer';
 import ChampagneToast from '@/components/ChampagneToast';
 import PremiumHeading from '@/components/PremiumHeading';
+import GamesHomeButton from '@/components/home/GamesHomeButton';
 import { Star, Crown } from 'lucide-react';
 
 interface MobileHomeLayoutProps {
@@ -101,6 +102,8 @@ const MobileHomeLayout = ({ userName }: MobileHomeLayoutProps) => {
         <p className="text-gold/60 text-xs tracking-[0.2em] uppercase mb-1">Welcome</p>
         <p className="font-display text-gradient-gold" style={{ fontSize: 'clamp(1.2rem, 5vw, 1.8rem)' }}>{userName}</p>
       </motion.div>
+
+      <GamesHomeButton className="relative z-10 mt-[2.5vh] w-full max-w-xs" />
     </motion.div>
   );
 };

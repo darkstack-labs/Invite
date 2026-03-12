@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
 import ParticleBackground from '@/components/ParticleBackground';
 import TypewriterText from '@/components/TypewriterText';
+import { lookupInviteByName } from '@/invite/services/guestDirectory';
+import { formatGuestName } from '@/invite/utils';
 import { Crown, Sparkles, Star, KeyRound } from 'lucide-react';
-import { guests } from '@/contexts/AuthContext';
 
 const BUBBLES_VIDEO = "https://cdn.pixabay.com/video/2020/05/25/39831-424930989_large.mp4";
 
-// Floating ornamental line
 const OrnamentalDivider = () => (
   <motion.div
     initial={{ scaleX: 0, opacity: 0 }}
@@ -30,42 +31,79 @@ const OrnamentalDivider = () => (
 const Index = () => {
   const navigate = useNavigate();
   const [name, setName] = useState('');
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [showEntryId, setShowEntryId] = useState(false);
+  const [message, setMessage] = useState<{
+    text: string;
+    type: 'success' | 'error';
+  } | null>(null);
+  const [hasInviteMatch, setHasInviteMatch] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
   const [showTypewriter, setShowTypewriter] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
-  const [phase, setPhase] = useState(0); // 0=nothing, 1=crown, 2=title, 3=card
+  const [phase, setPhase] = useState(0);
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase(1), 400);
     const t2 = setTimeout(() => setPhase(2), 1200);
     const t3 = setTimeout(() => setPhase(3), 3200);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, []);
 
-  const formatName = (input: string) =>
-    input.trim().charAt(0).toUpperCase() + input.trim().slice(1).toLowerCase();
+  const checkInvitation = async () => {
+    const formattedName = formatGuestName(name);
 
-  const isGuest = formatName(name) in guests;
+    if (!formattedName) {
+      setHasInviteMatch(false);
+      setMessage({
+        text: 'Enter your name to check the guest list.',
+        type: 'error',
+      });
+      return;
+    }
 
-  const checkInvitation = () => {
-    const formatted = formatName(name);
-    setName(formatted);
-    if (guests[formatted]) {
-      setMessage({ text: "You're on the list. Welcome to the madness!", type: 'success' });
-      setShowEntryId(false);
-    } else {
-      setMessage({ text: "Oops — you didn't make the cut.", type: 'error' });
-      setShowEntryId(false);
+    setName(formattedName);
+    setHasInviteMatch(false);
+    setMessage(null);
+    setIsChecking(true);
+
+    try {
+      const invite = await lookupInviteByName(formattedName);
+
+      if (invite) {
+        setHasInviteMatch(true);
+        setMessage({
+          text: "You're on the list. Head to login with your Entry ID to continue.",
+          type: 'success',
+        });
+      } else {
+        setMessage({
+          text: "We couldn't find a matching invite for that name.",
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      console.error('Invite lookup failed', error);
+      setMessage({
+        text: "We couldn't check the guest list right now. Please try again.",
+        type: 'error',
+      });
+    } finally {
+      setIsChecking(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Video BG */}
       <div className="fixed inset-0 z-0">
         <video
-          autoPlay muted loop playsInline
+          autoPlay
+          muted
+          loop
+          playsInline
           onLoadedData={() => setVideoLoaded(true)}
           className={`absolute w-full h-full object-cover transition-opacity duration-1000 ${videoLoaded ? 'opacity-15' : 'opacity-0'}`}
           style={{ filter: 'sepia(100%) hue-rotate(10deg) saturate(80%)' }}
@@ -78,7 +116,6 @@ const Index = () => {
       <div className="fixed inset-0 bg-gradient-to-br from-black via-[#030303] to-[#0a0700] -z-10" />
       <ParticleBackground count={40} />
 
-      {/* Corner ornaments */}
       <div className="fixed top-0 left-0 w-32 h-32 pointer-events-none z-[1]">
         <div className="absolute top-4 left-4 w-16 h-px bg-gradient-to-r from-gold/30 to-transparent" />
         <div className="absolute top-4 left-4 w-px h-16 bg-gradient-to-b from-gold/30 to-transparent" />
@@ -97,7 +134,6 @@ const Index = () => {
       </div>
 
       <div className="relative z-10 flex flex-col min-h-screen">
-        {/* Login Button */}
         <AnimatePresence>
           {phase >= 3 && (
             <motion.div
@@ -120,13 +156,10 @@ const Index = () => {
           )}
         </AnimatePresence>
 
-        {/* Main */}
         <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
-          {/* Phase 1: Grand crown entrance with multiple glows */}
           <AnimatePresence>
             {phase >= 1 && (
               <>
-                {/* Multi-layer glow burst */}
                 <motion.div
                   initial={{ scale: 0, opacity: 1 }}
                   animate={{ scale: [0, 4], opacity: [0.6, 0] }}
@@ -142,7 +175,6 @@ const Index = () => {
                   style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.2), transparent 70%)' }}
                 />
 
-                {/* Crown with dramatic drop */}
                 <motion.div
                   initial={{ scale: 0, y: -200, opacity: 0 }}
                   animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -167,7 +199,6 @@ const Index = () => {
             )}
           </AnimatePresence>
 
-          {/* Phase 2: Title reveal */}
           <AnimatePresence>
             {phase >= 2 && (
               <motion.div
@@ -184,7 +215,12 @@ const Index = () => {
                   }}
                 >
                   {showTypewriter ? (
-                    <TypewriterText text="THE WORST BATCH" speed={100} delay={200} onComplete={() => setShowTypewriter(false)} />
+                    <TypewriterText
+                      text="THE WORST BATCH"
+                      speed={100}
+                      delay={200}
+                      onComplete={() => setShowTypewriter(false)}
+                    />
                   ) : (
                     'THE WORST BATCH'
                   )}
@@ -196,7 +232,7 @@ const Index = () => {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 1.8 }}
                 >
-                  ✦ Signing Off ✦
+                  * Signing Off *
                 </motion.p>
 
                 <OrnamentalDivider />
@@ -204,7 +240,6 @@ const Index = () => {
             )}
           </AnimatePresence>
 
-          {/* Phase 3: Card */}
           <AnimatePresence>
             {phase >= 3 && (
               <motion.div
@@ -214,7 +249,6 @@ const Index = () => {
                 className="w-full max-w-sm"
               >
                 <div className="relative">
-                  {/* Animated gold border */}
                   <motion.div
                     className="absolute -inset-px rounded-2xl"
                     style={{
@@ -231,18 +265,23 @@ const Index = () => {
                   >
                     <div className="flex items-center justify-center gap-2 mb-1">
                       <div className="h-px w-8 bg-gradient-to-r from-transparent to-gold/30" />
-                      <h2 className="font-cinzel font-semibold text-gold tracking-wider" style={{ fontSize: 'clamp(0.9rem, 3.5vw, 1.2rem)' }}>
+                      <h2
+                        className="font-cinzel font-semibold text-gold tracking-wider"
+                        style={{ fontSize: 'clamp(0.9rem, 3.5vw, 1.2rem)' }}
+                      >
                         You're Invited
                       </h2>
                       <div className="h-px w-8 bg-gradient-to-l from-transparent to-gold/30" />
                     </div>
-                    <p className="text-muted-foreground text-xs mb-5 tracking-wide">Check if you made the exclusive list</p>
+                    <p className="text-muted-foreground text-xs mb-5 tracking-wide">
+                      Check if you made the exclusive list
+                    </p>
 
                     <input
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && checkInvitation()}
+                      onChange={(event) => setName(event.target.value)}
+                      onKeyDown={(event) => event.key === 'Enter' && checkInvitation()}
                       placeholder="Enter your name"
                       className="input-gold w-full px-5 py-3 rounded-xl text-center text-sm font-medium mb-4"
                     />
@@ -251,9 +290,10 @@ const Index = () => {
                       whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(212,175,55,0.3)' }}
                       whileTap={{ scale: 0.98 }}
                       onClick={checkInvitation}
-                      className="btn-gold w-full py-3 rounded-xl font-bold text-sm tracking-wide"
+                      disabled={isChecking}
+                      className="btn-gold w-full py-3 rounded-xl font-bold text-sm tracking-wide disabled:opacity-70"
                     >
-                      Check My Invitation
+                      {isChecking ? 'Checking...' : 'Check My Invitation'}
                     </motion.button>
 
                     <AnimatePresence mode="wait">
@@ -281,15 +321,15 @@ const Index = () => {
                           exit={{ opacity: 0, height: 0 }}
                           className="flex justify-center mt-4"
                         >
-                          {isGuest ? (
+                          {hasInviteMatch ? (
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
-                              onClick={() => setShowEntryId(true)}
+                              onClick={() => navigate('/login')}
                               className="btn-gold px-5 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold"
                             >
                               <Star className="w-3.5 h-3.5" />
-                              View Entry ID
+                              Continue to Login
                             </motion.button>
                           ) : (
                             <motion.button
@@ -306,7 +346,7 @@ const Index = () => {
                     </AnimatePresence>
 
                     <AnimatePresence>
-                      {showEntryId && isGuest && (
+                      {hasInviteMatch && (
                         <motion.div
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -324,9 +364,11 @@ const Index = () => {
                             transition={{ duration: 3, repeat: Infinity }}
                             className="inline-block px-6 py-3 rounded-xl border border-gold/40 bg-black/60"
                           >
-                            <p className="text-[10px] text-champagne/40 mb-1 uppercase tracking-[0.2em]">Your Entry ID</p>
+                            <p className="text-[10px] text-champagne/40 mb-1 uppercase tracking-[0.2em]">
+                              Invite confirmed
+                            </p>
                             <p className="font-bold text-gold text-xl tracking-widest font-cinzel">
-                              {guests[formatName(name)]}
+                              Use your Entry ID on the login screen
                             </p>
                           </motion.div>
                         </motion.div>
@@ -338,7 +380,6 @@ const Index = () => {
             )}
           </AnimatePresence>
 
-          {/* Footer */}
           <AnimatePresence>
             {phase >= 3 && (
               <motion.p

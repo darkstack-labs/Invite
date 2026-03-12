@@ -1,43 +1,78 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ParticleBackground from '@/components/ParticleBackground';
 import { useAuth } from '@/contexts/AuthContext';
+import { sanitizeEntryId } from '@/invite/utils';
 import { Crown, Sparkles, Star, KeyRound } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, user } = useAuth();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { login, user, isLoading: authLoading } = useAuth();
   const [regNumber, setRegNumber] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const redirectPath = useMemo(() => {
+    const routeState = location.state as
+      | {
+          from?: {
+            pathname?: string;
+          };
+        }
+      | undefined;
+
+    return routeState?.from?.pathname || '/home';
+  }, [location.state]);
+
+  useEffect(() => {
+    const entryIdFromQuery = searchParams.get('entryId');
+
+    if (!entryIdFromQuery) {
+      return;
+    }
+
+    setRegNumber(entryIdFromQuery.replace(/\D/g, '').slice(0, 6));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate(redirectPath, { replace: true });
+    }
+  }, [authLoading, navigate, redirectPath, user]);
 
   const handleLogin = async () => {
-    if (isLoading) return;
+    if (isSubmitting || authLoading) {
+      return;
+    }
+
+    const entryId = sanitizeEntryId(regNumber);
 
     if (!regNumber.trim()) {
-      setError("Please enter your Entry ID.");
+      setError('Please enter your Entry ID.');
       return;
     }
 
-    setIsLoading(true);
+    if (!entryId) {
+      setError('Entry ID must be 4 or 6 digits.');
+      return;
+    }
+
+    setIsSubmitting(true);
     setError('');
 
-    if (!(regNumber.length === 4 || regNumber.length === 6)) {
-      setError("Entry ID must be 4 or 6 digits.");
-      return;
-    }
+    try {
+      const result = await login(entryId);
 
-    await new Promise(resolve => setTimeout(resolve, 400));
-
-    const success = login(regNumber.trim());
-
-    if (success) { 
-      setIsLoading(false);
-      navigate('/home', { replace: true });
-    } else {
-      setError('Invalid Entry ID.');
-      setIsLoading(false);
+      if (result.ok) {
+        navigate(redirectPath, { replace: true });
+      } else {
+        setError(result.message);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -127,13 +162,13 @@ const Login = () => {
           transition={{ delay: 0.4 }}
         >
           <input
-          maxLength={6}
+            maxLength={6}
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
             value={regNumber}
             onChange={(e) => {
-              const value = e.target.value.replace(/\D/g, "");
+              const value = e.target.value.replace(/\D/g, "").slice(0, 6);
               setRegNumber(value);
             }}
             onKeyDown={handleKeyPress}
@@ -149,10 +184,10 @@ const Login = () => {
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           onClick={handleLogin}
-          disabled={isLoading}
+          disabled={isSubmitting || authLoading}
           className="btn-gold w-full py-3 rounded-xl text-base font-semibold disabled:opacity-70"
         >
-          {isLoading ? (
+          {isSubmitting || authLoading ? (
             <motion.span
               animate={{ opacity: [1, 0.5, 1] }}
               transition={{ repeat: Infinity, duration: 1 }}
@@ -185,7 +220,7 @@ const Login = () => {
           whileHover={{ scale: 1.02, opacity: 1 }}
           className="mt-6 text-sm text-muted-foreground hover:text-gold transition-colors"
         >
-          ← Back to Invitation Check
+          {'<'} Back to Invitation Check
         </motion.button>
       </motion.div>
     </div>

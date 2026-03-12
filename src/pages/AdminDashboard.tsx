@@ -1,194 +1,236 @@
-import { useState, useMemo } from "react";
+// Components
 import AdminLayout from "../components/admin/AdminLayout";
 import AdminStats from "../components/admin/AdminStats";
 import RSVPTable from "../components/admin/RSPVTable";
 import SongsTable from "../components/admin/SongsTable";
 import SuggestionsTable from "../components/admin/SuggestionsTable";
 
+// Hooks
 import useRSVPs from "../hooks/useRSPVs";
 import useSongs from "../hooks/useSongs";
 import useSuggestions from "../hooks/useSuggestions";
 
-interface RSVP {
-  name?: string;
-  attendance?: "yes" | "no";
-  mealPreference?: "veg" | "nonveg";
-}
+// Types
+import { RSVP, SongRequest, Suggestion, AdminStatsData } from "../types/admin";
 
-const ADMIN_PASSWORD = "randiokimehfil";
-
+const AUTH_KEY = "admin-auth-session";
 export default function AdminDashboard(): JSX.Element {
-
   /* ---------------- DATA HOOKS ---------------- */
-
+  // Real-time Firestore listeners
   const rsvps = useRSVPs() ?? [];
   const songs = useSongs() ?? [];
   const suggestions = useSuggestions() ?? [];
 
   /* ---------------- STATE ---------------- */
-
   const [search, setSearch] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(AUTH_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
 
-  const [authenticated, setAuthenticated] = useState<boolean>(
-    localStorage.getItem("admin-auth") === "true"
-  );
-
-  const [password, setPassword] = useState<string>("");
+  /* ---------------- EFFECTS ---------------- */
+  // Debounce search input to optimize performance
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   /* ---------------- DERIVED DATA ---------------- */
-
+  // Memoized guest filtering
   const filteredGuests = useMemo(() => {
-    return rsvps.filter((g: RSVP) =>
-      (g?.name ?? "").toLowerCase().includes(search.toLowerCase())
+    const query = debouncedSearch.toLowerCase().trim();
+    if (!query) return rsvps;
+    return rsvps.filter((guest: RSVP) =>
+      (guest?.name ?? "").toLowerCase().includes(query)
     );
-  }, [rsvps, search]);
+  }, [rsvps, debouncedSearch]);
 
-  const stats = useMemo(() => {
+  // Memoized statistics
+  const stats: AdminStatsData = useMemo(() => {
     return {
       total: rsvps.length,
-      attending: rsvps.filter((r: RSVP) => r.attendance === "yes").length,
-      veg: rsvps.filter((r: RSVP) => r.mealPreference === "veg").length,
-      nonVeg: rsvps.filter((r: RSVP) => r.mealPreference === "nonveg").length,
+      attending: rsvps.filter((r) => r.attendance === "yes").length,
+      veg: rsvps.filter((r) => r.mealPreference === "veg").length,
+      nonVeg: rsvps.filter((r) => r.mealPreference === "nonveg").length,
     };
   }, [rsvps]);
 
-  /* ---------------- AUTH ---------------- */
+  /* ---------------- HANDLERS ---------------- */
+  const handleLogin = useCallback(() => {
+    localStorage.setItem(AUTH_KEY, "true");
+    setIsAuthenticated(true);
+  }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("admin-auth");
-    setAuthenticated(false);
-    setPassword("");
-  };
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem(AUTH_KEY);
+    setIsAuthenticated(false);
+  }, []);
 
-  /* ---------------- LOGIN SCREEN ---------------- */
-
-  if (!authenticated) {
-    return (
-      <div
-        style={{
-          height: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          background: "#0f0f0f",
-        }}
-      >
-        <div
-          style={{
-            background: "#161616",
-            padding: 40,
-            borderRadius: 10,
-            width: 320,
-            color: "#fff",
-            textAlign: "center",
-          }}
-        >
-          <h2 style={{ marginBottom: 20 }}>Admin Login</h2>
-
-          <input
-            type="password"
-            placeholder="Enter admin password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              marginBottom: 20,
-              borderRadius: 6,
-              border: "1px solid #333",
-              background: "#111",
-              color: "#fff",
-            }}
-          />
-
-          <button
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 6,
-              border: "none",
-              background: "#f5b000",
-              color: "#111",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-            onClick={() => {
-              if (password === ADMIN_PASSWORD) {
-                localStorage.setItem("admin-auth", "true");
-                setAuthenticated(true);
-              } else {
-                alert("Incorrect password");
-              }
-            }}
-          >
-            Login
-          </button>
-        </div>
-      </div>
-    );
+  /* ---------------- AUTH GUARD ---------------- */
+  if (!isAuthenticated) {
+    return <AdminLogin onLoginSuccess={handleLogin} />;
   }
 
-  /* ---------------- DASHBOARD ---------------- */
-
+  /* ---------------- RENDER ---------------- */
   return (
-    <AdminLayout>
-
-      {/* LOGOUT */}
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: 20,
-        }}
-      >
+    <AdminLayout activeSection="Dashboard">
+      {/* Header & Logout */}
+      <div style={headerActionStyle}>
+        <div>
+          <h1 style={titleStyle}>Event Overview</h1>
+          <p style={subtitleStyle}>Real-time guest and request management</p>
+        </div>
         <button
           onClick={handleLogout}
-          style={{
-            padding: "8px 14px",
-            borderRadius: 6,
-            border: "none",
-            background: "#ff4d4f",
-            color: "#fff",
-            cursor: "pointer",
-          }}
+          style={logoutButtonStyle}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,77,79,0.1)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
-          Logout
+          Sign Out
         </button>
       </div>
 
-      {/* STATS */}
+      <hr style={dividerStyle} />
 
+      {/* Statistics Section */}
       <AdminStats stats={stats} />
 
-      {/* SEARCH */}
+      {/* Main Management Section */}
+      <div style={contentGridStyle}>
+        
+        {/* RSVPs (Full Width) */}
+        <section style={sectionStyle}>
+          <div style={toolbarStyle}>
+            <h2 style={sectionTitleStyle}>Guest List</h2>
+            <div style={searchContainerStyle}>
+              <span style={searchIconStyle}>🔍</span>
+              <input
+                type="text"
+                placeholder="Search by guest name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={searchInputStyle}
+              />
+            </div>
+          </div>
+          <RSVPTable guests={filteredGuests} />
+        </section>
 
-      <div style={{ marginBottom: 30 }}>
-        <input
-          placeholder="Search guest..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            padding: 10,
-            width: 300,
-            borderRadius: 6,
-            border: "1px solid #ccc",
-          }}
-        />
+        {/* Requests & Feedback (Split Grid) */}
+        <div style={splitGridStyle}>
+          <SongsTable songs={songs} />
+          <SuggestionsTable suggestions={suggestions} />
+        </div>
+
       </div>
-
-      {/* RSVP TABLE */}
-
-      <RSVPTable guests={filteredGuests} />
-
-      {/* SONG REQUESTS */}
-
-      <SongsTable songs={songs} />
-
-      {/* SUGGESTIONS */}
-
-      <SuggestionsTable suggestions={suggestions} />
-
     </AdminLayout>
   );
 }
+
+/* ---------------- STYLES (Production Dark Theme) ---------------- */
+
+const headerActionStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  marginBottom: "20px",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: "2rem",
+  fontWeight: 800,
+  margin: 0,
+  color: "#fff",
+};
+
+const subtitleStyle: React.CSSProperties = {
+  color: "#666",
+  margin: "4px 0 0 0",
+};
+
+const logoutButtonStyle: React.CSSProperties = {
+  padding: "10px 20px",
+  backgroundColor: "transparent",
+  color: "#ff4d4f",
+  border: "1px solid #ff4d4f",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: 600,
+  transition: "all 0.2s ease",
+};
+
+const dividerStyle: React.CSSProperties = {
+  border: "none",
+  borderTop: "1px solid #222",
+  margin: "30px 0",
+};
+
+const contentGridStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "50px",
+};
+
+const sectionStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "20px",
+};
+
+const toolbarStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "15px",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "1.25rem",
+  color: "#f5b000",
+};
+
+const searchContainerStyle: React.CSSProperties = {
+  position: "relative",
+  width: "100%",
+  maxWidth: "350px",
+};
+
+const searchIconStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "12px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  fontSize: "14px",
+  opacity: 0.5,
+};
+
+const searchInputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 12px 12px 40px",
+  backgroundColor: "#161616",
+  border: "1px solid #333",
+  borderRadius: "10px",
+  color: "#fff",
+  fontSize: "0.95rem",
+  outline: "none",
+};
+
+const splitGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
+  gap: "30px",
+  alignItems: "start",
+};
+
+const sectionSpacer: React.CSSProperties = {
+  marginTop: "40px"
+};

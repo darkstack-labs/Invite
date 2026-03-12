@@ -1,0 +1,71 @@
+import type { GuestGender } from "./types";
+import { normalizeNameKey } from "./utils";
+
+const legacyGuestGenderEntries: Array<[string, GuestGender]> = [
+  ["Pahal", "Female"],
+  ["Aditi", "Female"],
+  ["Sarvagya", "Male"],
+  ["Anay", "Male"],
+  ["Shivasheesh", "Male"],
+  ["Simar", "Male"],
+  ["Vikram", "Male"],
+  ["Roshan Kumar", "Male"],
+  ["Ankita", "Female"],
+  ["Tanvi", "Female"],
+  ["Arya", "Male"],
+  ["Spandan", "Male"],
+  ["Deepanshi", "Female"],
+  ["Shlok Kumar", "Male"],
+  ["Arushi", "Female"],
+  ["Ishan", "Male"],
+  ["Huzaifa", "Male"],
+  ["Aryan Majumdar", "Male"],
+  ["Sarvesh", "Male"],
+  ["Ananya", "Female"],
+  ["Roshan", "Male"],
+  ["Sanjiban", "Male"],
+  ["Puja", "Female"],
+  ["Lodh", "Male"],
+  ["Hanshika", "Female"],
+  ["Yushi", "Female"],
+  ["Pari", "Female"],
+  ["Shray", "Male"],
+  ["Krisha", "Female"],
+  ["Anshika Suman", "Female"],
+  ["Vats", "Male"],
+  ["Navya", "Female"],
+  ["Ashika", "Female"],
+  ["Swarit", "Male"],
+  ["Hazique", "Male"],
+  ["Rishabh", "Male"],
+  ["Pratham", "Male"],
+  ["Prateek", "Male"],
+  ["Kamali", "Female"],
+  ["Asad", "Male"],
+  ["Raj Nandani", "Female"],
+  ["Rishik", "Male"],
+  ["Vishwaraj", "Male"],
+  ["Abhishek", "Male"],
+  ["Kawal", "Male"],
+  ["Atul", "Male"],
+  ["Ayansh", "Male"],
+  ["Shlok Mishra", "Male"],
+  ["Rohan", "Male"],
+  ["Anshuman", "Male"],
+  ["Darsh", "Male"],
+  ["Ayushman", "Male"],
+  ["Jasmine", "Female"],
+  ["Atul Agarwal", "Male"],
+  ["Ayushi Das", "Female"],
+  ["Anushka", "Female"],
+  ["Anusha", "Female"],
+  ["Alankrita", "Female"],
+];
+
+const legacyGuestGenders = new Map(
+  legacyGuestGenderEntries.map(([name, gender]) => [normalizeNameKey(name), gender])
+);
+
+export const resolveLegacyGuestGender = (
+  name: string | null | undefined
+): GuestGender => legacyGuestGenders.get(normalizeNameKey(name)) ?? "Unknown";

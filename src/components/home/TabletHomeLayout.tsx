@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import CountdownTimer from '@/components/CountdownTimer';
 import ChampagneToast from '@/components/ChampagneToast';
 import PremiumHeading from '@/components/PremiumHeading';
+import GamesHomeButton from '@/components/home/GamesHomeButton';
 import { Calendar, MapPin, Sparkles, Star, Crown } from 'lucide-react';
 
 interface TabletHomeLayoutProps {
@@ -144,11 +145,13 @@ const TabletHomeLayout = ({ userName }: TabletHomeLayoutProps) => {
           </motion.div>
         </div>
 
+        <GamesHomeButton className="mt-4 w-full" />
+
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="mt-4"
+          className="mt-4 w-full"
         >
           <motion.div
             animate={{ opacity: [0.7, 1, 0.7] }}

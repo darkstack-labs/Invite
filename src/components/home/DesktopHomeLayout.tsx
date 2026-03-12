@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import CountdownTimer from '@/components/CountdownTimer';
 import ChampagneToast from '@/components/ChampagneToast';
 import PremiumHeading from '@/components/PremiumHeading';
+import GamesHomeButton from '@/components/home/GamesHomeButton';
 import { Calendar, MapPin, Sparkles, Star, Crown } from 'lucide-react';
 
 interface DesktopHomeLayoutProps {
@@ -139,6 +140,8 @@ const DesktopHomeLayout = ({ userName }: DesktopHomeLayoutProps) => {
             <p className="text-gold text-lg">Welcome to the celebration</p>
             <p className="text-4xl font-display text-gradient-gold mt-2">{userName}</p>
           </motion.div>
+
+          <GamesHomeButton className="max-w-sm" />
         </motion.div>
 
         {/* Right Side */}
