@@ -1,6 +1,12 @@
 import { FieldValue } from "firebase-admin/firestore";
 
-import { adminDb, readJsonBody, sendJson, verifyGuestRequest } from "./admin.js";
+import {
+  adminDb,
+  isApiError,
+  readJsonBody,
+  sendJson,
+  verifyGuestRequest,
+} from "./admin.js";
 
 const SELF_NOMINATION_CATEGORIES = [
   "mostPopularMale",
@@ -217,6 +223,13 @@ export default async function handler(req, res) {
       message: "Invalid games action.",
     });
   } catch (error) {
+    if (isApiError(error)) {
+      sendJson(res, error.statusCode, {
+        message: error.message,
+      });
+      return;
+    }
+
     console.error("Games submission failed", error);
     sendJson(res, 500, {
       message: "We could not save your games submission right now.",

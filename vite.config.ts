@@ -24,8 +24,12 @@ const loadDevApiHandler = async (pathname: string): Promise<DevApiHandler | null
       return (await import("./api/games.js")).default;
     case "/invite-lookup":
       return (await import("./api/invite-lookup.js")).default;
+    case "/inviteLookup":
+      return (await import("./api/inviteLookup.js")).default;
     case "/login":
       return (await import("./api/login.js")).default;
+    case "/rsvp":
+      return (await import("./api/rsvp.js")).default;
     default:
       return null;
   }

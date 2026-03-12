@@ -1,5 +1,4 @@
-import { adminAuth, adminDb, readJsonBody, sendJson } from "./admin.js";
-import { getLocalGuestByEntryId } from "./localGuestProfiles.js";
+import { adminAuth, adminDb, isApiError, readJsonBody, sendJson } from "./admin.js";
 
 const GUESTS_COLLECTION = "guests";
 const ENTRY_ID_FIELDS = ["entryId", "entryCode"];
@@ -128,42 +127,41 @@ const fetchGuestProfileByEntryId = async (rawEntryId) => {
     return null;
   }
 
-  try {
-    const directSnapshot = await adminDb.collection(GUESTS_COLLECTION).doc(entryId).get();
-    const directMatch = mapGuestRecord(
-      directSnapshot.id,
-      directSnapshot.data() || undefined
-    );
+  const directSnapshot = await adminDb
+    .collection(GUESTS_COLLECTION)
+    .doc(entryId)
+    .get();
+  const directMatch = mapGuestRecord(
+    directSnapshot.id,
+    directSnapshot.data() || undefined
+  );
 
-    if (directMatch) {
-      return directMatch;
-    }
-
-    for (const fieldName of ENTRY_ID_FIELDS) {
-      const querySnapshot = await adminDb
-        .collection(GUESTS_COLLECTION)
-        .where(fieldName, "==", entryId)
-        .limit(1)
-        .get();
-
-      const guestDocument = querySnapshot.docs[0];
-
-      if (guestDocument) {
-        const guestProfile = mapGuestRecord(
-          guestDocument.id,
-          guestDocument.data()
-        );
-
-        if (guestProfile) {
-          return guestProfile;
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("Invite login is falling back to the bundled guest directory", error);
+  if (directMatch) {
+    return directMatch;
   }
 
-  return getLocalGuestByEntryId(entryId);
+  for (const fieldName of ENTRY_ID_FIELDS) {
+    const querySnapshot = await adminDb
+      .collection(GUESTS_COLLECTION)
+      .where(fieldName, "==", entryId)
+      .limit(1)
+      .get();
+
+    const guestDocument = querySnapshot.docs[0];
+
+    if (guestDocument) {
+      const guestProfile = mapGuestRecord(
+        guestDocument.id,
+        guestDocument.data()
+      );
+
+      if (guestProfile) {
+        return guestProfile;
+      }
+    }
+  }
+
+  return null;
 };
 
 export default async function handler(req, res) {
@@ -207,6 +205,13 @@ export default async function handler(req, res) {
       user: guestProfile,
     });
   } catch (error) {
+    if (isApiError(error)) {
+      sendJson(res, error.statusCode, {
+        message: error.message,
+      });
+      return;
+    }
+
     console.error("Invite login failed", error);
     sendJson(res, 500, {
       message: "We could not verify your invite right now. Please try again.",

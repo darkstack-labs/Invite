@@ -1,4 +1,4 @@
-import { adminDb, readJsonBody, sendJson } from "./admin.js";
+import { adminDb, isApiError, readJsonBody, sendJson } from "./admin.js";
 import { getLocalGuestByName } from "./localGuestProfiles.js";
 
 const GUESTS_COLLECTION = "guests";
@@ -58,7 +58,10 @@ const findInviteByName = async (rawName) => {
       }
     }
   } catch (error) {
-    console.warn("Invite lookup is falling back to the bundled guest directory", error);
+    console.warn(
+      "Invite lookup is falling back to the bundled guest directory",
+      error
+    );
   }
 
   const localGuest = getLocalGuestByName(formattedName);
@@ -86,6 +89,13 @@ export default async function handler(req, res) {
 
     sendJson(res, 200, invite || { found: false });
   } catch (error) {
+    if (isApiError(error)) {
+      sendJson(res, error.statusCode, {
+        message: error.message,
+      });
+      return;
+    }
+
     console.error("Invite lookup failed", error);
     sendJson(res, 500, {
       message: "We could not check the guest list right now. Please try again.",
