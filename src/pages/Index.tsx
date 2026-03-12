@@ -36,6 +36,7 @@ const Index = () => {
     type: 'success' | 'error';
   } | null>(null);
   const [hasInviteMatch, setHasInviteMatch] = useState(false);
+  const [matchedEntryId, setMatchedEntryId] = useState('');
   const [isChecking, setIsChecking] = useState(false);
   const [showTypewriter, setShowTypewriter] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
@@ -67,17 +68,25 @@ const Index = () => {
 
     setName(formattedName);
     setHasInviteMatch(false);
+    setMatchedEntryId('');
     setMessage(null);
     setIsChecking(true);
 
     try {
       const invite = await lookupInviteByName(formattedName);
 
-      if (invite.found) {
+      if (invite.found && invite.entryId) {
+        setName(invite.name || formattedName);
         setHasInviteMatch(true);
+        setMatchedEntryId(invite.entryId);
         setMessage({
-          text: "You're on the list. Head to login with your Entry ID to continue.",
+          text: "You're on the list. Use your Entry ID below to continue.",
           type: 'success',
+        });
+      } else if (invite.found) {
+        setMessage({
+          text: "You're on the list, but your Entry ID is unavailable right now. Please contact support.",
+          type: 'error',
         });
       } else {
         setMessage({
@@ -325,7 +334,13 @@ const Index = () => {
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
-                              onClick={() => navigate('/login')}
+                              onClick={() =>
+                                navigate(
+                                  matchedEntryId
+                                    ? `/login?entryId=${encodeURIComponent(matchedEntryId)}`
+                                    : '/login'
+                                )
+                              }
                               className="btn-gold px-5 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold"
                             >
                               <Star className="w-3.5 h-3.5" />
@@ -365,10 +380,10 @@ const Index = () => {
                             className="inline-block px-6 py-3 rounded-xl border border-gold/40 bg-black/60"
                           >
                             <p className="text-[10px] text-champagne/40 mb-1 uppercase tracking-[0.2em]">
-                              Invite confirmed
+                              Your Entry ID
                             </p>
                             <p className="font-bold text-gold text-xl tracking-widest font-cinzel">
-                              Use your Entry ID on the login screen
+                              {matchedEntryId}
                             </p>
                           </motion.div>
                         </motion.div>

@@ -20,6 +20,30 @@ const formatGuestName = (value) => {
 
 const normalizeNameKey = (value) => formatGuestName(value).toLowerCase();
 
+const sanitizeEntryId = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const digitsOnly = value.replace(/\D/g, "");
+  return /^(\d{4}|\d{6})$/.test(digitsOnly) ? digitsOnly : "";
+};
+
+const mapInviteRecord = (documentId, data = {}) => {
+  const name = formatGuestName(data?.name);
+  const entryId = sanitizeEntryId(data?.entryId || data?.entryCode || documentId);
+
+  if (!name || !entryId) {
+    return null;
+  }
+
+  return {
+    found: true,
+    name,
+    entryId,
+  };
+};
+
 const findInviteByName = async (rawName) => {
   const formattedName = formatGuestName(rawName);
 
@@ -35,10 +59,14 @@ const findInviteByName = async (rawName) => {
       .get();
 
     if (!exactNameSnapshot.empty) {
-      return {
-        found: true,
-        name: formatGuestName(exactNameSnapshot.docs[0].data()?.name),
-      };
+      const exactInvite = mapInviteRecord(
+        exactNameSnapshot.docs[0].id,
+        exactNameSnapshot.docs[0].data()
+      );
+
+      if (exactInvite) {
+        return exactInvite;
+      }
     }
 
     const normalizedName = normalizeNameKey(formattedName);
@@ -51,10 +79,14 @@ const findInviteByName = async (rawName) => {
         .get();
 
       if (!normalizedSnapshot.empty) {
-        return {
-          found: true,
-          name: formatGuestName(normalizedSnapshot.docs[0].data()?.name),
-        };
+        const normalizedInvite = mapInviteRecord(
+          normalizedSnapshot.docs[0].id,
+          normalizedSnapshot.docs[0].data()
+        );
+
+        if (normalizedInvite) {
+          return normalizedInvite;
+        }
       }
     }
   } catch (error) {
@@ -70,6 +102,9 @@ const findInviteByName = async (rawName) => {
     ? {
         found: true,
         name: localGuest.name,
+        entryId: sanitizeEntryId(
+          localGuest.entryId || localGuest.entryCode || ""
+        ),
       }
     : null;
 };

@@ -1,8 +1,9 @@
-import { formatGuestName } from "@/invite/utils";
+import { formatGuestName, sanitizeEntryId } from "@/invite/utils";
 
 export type InviteLookupResult = {
   found: boolean;
   name?: string;
+  entryId?: string;
 };
 
 export const lookupInviteByName = async (
@@ -30,7 +31,7 @@ export const lookupInviteByName = async (
   }
 
   const payload = (await response.json().catch(() => null)) as
-    | { found?: boolean; name?: string; message?: string }
+    | { found?: boolean; name?: string; entryId?: string; message?: string }
     | null;
 
   if (!response.ok) {
@@ -42,5 +43,6 @@ export const lookupInviteByName = async (
   return {
     found: Boolean(payload?.found),
     name: formatGuestName(payload?.name),
+    entryId: sanitizeEntryId(payload?.entryId),
   };
 };

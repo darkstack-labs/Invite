@@ -4,9 +4,9 @@ import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAbabuQzPAf5d_KQl3YYZ0ynEOQy_Xck7Q",
-  authDomain: "worstbatchsigningoff.firebaseapp.com",
-  projectId: "worstbatchsigningoff",
-  storageBucket: "worstbatchsigningoff.appspot.com",
+  authDomain: "worstbatchsingingoff.firebaseapp.com",
+  projectId: "worstbatchsingingoff",
+  storageBucket: "worstbatchsingingoff.appspot.com",
   messagingSenderId: "522072612591",
   appId: "1:522072612591:web:4ab093b0a197c9a32dc51a"
 };
