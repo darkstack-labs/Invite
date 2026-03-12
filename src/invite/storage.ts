@@ -1,10 +1,31 @@
 import type { StoredInviteSession, UserProfile } from "./types";
-import { sanitizeEntryId } from "./utils";
+import { coerceGuestGender, formatGuestName, sanitizeEntryId } from "./utils";
 
 const INVITE_SESSION_KEY = "batchPartyInviteSession";
 const LEGACY_ENTRY_ID_KEY = "batchPartyUser";
 
 const isBrowser = () => typeof window !== "undefined";
+
+const normalizeUserProfile = (
+  rawUser: Partial<UserProfile> | null | undefined
+): UserProfile | null => {
+  const entryId = sanitizeEntryId(rawUser?.entryId);
+  const name = formatGuestName(rawUser?.name);
+
+  if (!entryId || !name) {
+    return null;
+  }
+
+  return {
+    guestDocId:
+      typeof rawUser?.guestDocId === "string" ? rawUser.guestDocId : undefined,
+    name,
+    entryId,
+    gender: coerceGuestGender(rawUser?.gender),
+    badge: Boolean(rawUser?.badge),
+    rulesAccepted: Boolean(rawUser?.rulesAccepted),
+  };
+};
 
 export const loadStoredInviteSession = (): StoredInviteSession | null => {
   if (!isBrowser()) {
@@ -19,23 +40,18 @@ export const loadStoredInviteSession = (): StoredInviteSession | null => {
     }
 
     const parsed = JSON.parse(rawSession) as StoredInviteSession | null;
+    const normalizedUser = normalizeUserProfile(parsed?.user);
 
-    if (!parsed?.user?.entryId) {
-      return null;
-    }
-
-    const entryId = sanitizeEntryId(parsed.user.entryId);
-
-    if (!entryId) {
+    if (!normalizedUser) {
       return null;
     }
 
     return {
-      ...parsed,
-      user: {
-        ...parsed.user,
-        entryId,
-      },
+      user: normalizedUser,
+      validatedAt:
+        typeof parsed?.validatedAt === "string"
+          ? parsed.validatedAt
+          : new Date(0).toISOString(),
     };
   } catch (error) {
     console.error("Failed to read the stored invite session", error);
@@ -67,13 +83,19 @@ export const saveStoredInviteSession = (user: UserProfile) => {
     return;
   }
 
+  const normalizedUser = normalizeUserProfile(user);
+
+  if (!normalizedUser) {
+    return;
+  }
+
   const session: StoredInviteSession = {
-    user,
+    user: normalizedUser,
     validatedAt: new Date().toISOString(),
   };
 
   window.localStorage.setItem(INVITE_SESSION_KEY, JSON.stringify(session));
-  window.localStorage.setItem(LEGACY_ENTRY_ID_KEY, user.entryId);
+  window.localStorage.setItem(LEGACY_ENTRY_ID_KEY, normalizedUser.entryId);
 };
 
 export const clearStoredInviteSession = () => {

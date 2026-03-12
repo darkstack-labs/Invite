@@ -10,6 +10,7 @@ import {
   Shirt,
   DollarSign,
   Package,
+  type LucideIcon,
 } from "lucide-react";
 
 import PremiumHeading from "@/components/PremiumHeading";
@@ -19,8 +20,8 @@ interface DesktopRulesLayoutProps {
   formatRule: (rule: string) => React.ReactNode;
 }
 
-const behaviorIcons = [Ban, AlertTriangle, Ban, AlertTriangle, Ban, Clock];
-const logisticsIcons = [Shirt, Clock, Package, DollarSign, Clock, DollarSign];
+const behaviorIcons: LucideIcon[] = [Ban, AlertTriangle, Ban, AlertTriangle, Ban, Clock];
+const logisticsIcons: LucideIcon[] = [Shirt, Clock, Package, DollarSign, Clock, DollarSign];
 
 const DesktopRulesLayout = ({ rules, formatRule }: DesktopRulesLayoutProps) => {
   const behaviorRules = rules.slice(0, 6);
@@ -37,7 +38,7 @@ const DesktopRulesLayout = ({ rules, formatRule }: DesktopRulesLayoutProps) => {
     rule: string;
     index: number;
     globalIndex: number;
-    Icon: any;
+    Icon: LucideIcon;
   }) => {
     const isExpanded = expandedRule === globalIndex;
 
@@ -76,7 +77,6 @@ const DesktopRulesLayout = ({ rules, formatRule }: DesktopRulesLayoutProps) => {
         </div>
 
         <div className="grid grid-cols-2 gap-8">
-          {/* Behavior Rules */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
@@ -116,7 +116,6 @@ const DesktopRulesLayout = ({ rules, formatRule }: DesktopRulesLayoutProps) => {
             </ul>
           </motion.div>
 
-          {/* Logistics Rules */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
@@ -157,7 +156,6 @@ const DesktopRulesLayout = ({ rules, formatRule }: DesktopRulesLayoutProps) => {
           </motion.div>
         </div>
 
-        {/* Important Notice */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

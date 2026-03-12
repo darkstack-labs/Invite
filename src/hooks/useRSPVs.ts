@@ -1,28 +1,23 @@
 import { useEffect, useState } from "react";
-import { db } from "../firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 
-export default function useRSVPs() {
+import { db } from "../firebase";
+import type { RSVP } from "../types/admin";
 
-  const [rsvps, setRsvps] = useState<any[]>([]);
+export default function useRSVPs() {
+  const [rsvps, setRsvps] = useState<RSVP[]>([]);
 
   useEffect(() => {
+    const unsub = onSnapshot(collection(db, "rsvps"), (snap) => {
+      const data = snap.docs.map((docSnapshot) => ({
+        id: docSnapshot.id,
+        ...(docSnapshot.data() as Omit<RSVP, "id">),
+      }));
 
-    const unsub = onSnapshot(
-      collection(db, "rsvps"),
-      (snap) => {
-
-        const data = snap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-        setRsvps(data);
-      }
-    );
+      setRsvps(data);
+    });
 
     return () => unsub();
-
   }, []);
 
   return rsvps;

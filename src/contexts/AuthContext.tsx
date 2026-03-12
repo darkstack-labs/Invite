@@ -20,8 +20,11 @@ import {
   loadStoredInviteSession,
   saveStoredInviteSession,
 } from "@/invite/storage";
-import { fetchInviteByEntryId } from "@/invite/services/guestDirectory";
-import type { InviteAuthResult, UserProfile } from "@/invite/types";
+import type {
+  InviteAuthFailureReason,
+  InviteAuthResult,
+  UserProfile,
+} from "@/invite/types";
 import {
   coerceGuestGender,
   formatGuestName,
@@ -37,6 +40,22 @@ interface AuthContextType {
   isLoading: boolean;
 }
 
+type InviteTokenPayload = {
+  token?: string;
+  user?: UserProfile;
+  message?: string;
+};
+
+class InviteRequestError extends Error {
+  public readonly reason: InviteAuthFailureReason;
+
+  public constructor(reason: InviteAuthFailureReason, message: string) {
+    super(message);
+    this.name = "InviteRequestError";
+    this.reason = reason;
+  }
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -46,57 +65,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   const requestInviteToken = useCallback(async (entryId: string) => {
-    const response = await fetch("/api/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
-      body: JSON.stringify({ entryId }),
-    });
+    let response: Response;
+
+    try {
+      response = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+        body: JSON.stringify({ entryId }),
+      });
+    } catch {
+      throw new InviteRequestError(
+        "network-error",
+        "We could not reach invite verification. Please try again."
+      );
+    }
 
     const payload = (await response.json().catch(() => null)) as
-      | {
-          token?: string;
-          user?: UserProfile;
-          message?: string;
-        }
+      | InviteTokenPayload
       | null;
 
     if (!response.ok || !payload?.token || !payload?.user) {
-      throw new Error(payload?.message || "Invite verification failed");
+      if (response.status === 400) {
+        throw new InviteRequestError(
+          "invalid-entry-id",
+          payload?.message || "Entry ID must be 4 or 6 digits."
+        );
+      }
+
+      if (response.status === 404) {
+        throw new InviteRequestError(
+          "not-found",
+          payload?.message || "Invalid Entry ID."
+        );
+      }
+
+      throw new InviteRequestError(
+        "network-error",
+        payload?.message ||
+          "We could not verify your invite right now. Please try again."
+      );
     }
 
-    return payload;
+    return {
+      token: payload.token,
+      user: payload.user,
+    };
   }, []);
 
   const resolveUserFromFirebaseUser = useCallback(
     async (firebaseUser: FirebaseUser): Promise<UserProfile | null> => {
       const tokenResult = await getIdTokenResult(firebaseUser);
-      const entryId = sanitizeEntryId(
-        String(tokenResult.claims.entryId ?? "")
-      );
+      const entryId = sanitizeEntryId(String(tokenResult.claims.entryId ?? ""));
 
       if (!entryId) {
         return null;
       }
 
+      const storedSession = loadStoredInviteSession();
+      const storedUser =
+        storedSession?.user.entryId === entryId ? storedSession.user : null;
       const claimName = formatGuestName(
         typeof tokenResult.claims.guestName === "string"
           ? tokenResult.claims.guestName
-          : ""
+          : storedUser?.name
       );
       const claimGender = coerceGuestGender(tokenResult.claims.guestGender);
 
-      if (claimName && claimGender !== "Unknown") {
-        return {
-          name: claimName,
-          entryId,
-          gender: claimGender,
-        };
+      if (!claimName) {
+        return storedUser;
       }
 
-      return fetchInviteByEntryId(entryId);
+      return {
+        guestDocId: storedUser?.guestDocId,
+        name: claimName,
+        entryId,
+        gender:
+          claimGender !== "Unknown"
+            ? claimGender
+            : storedUser?.gender ?? "Unknown",
+        badge: storedUser?.badge,
+        rulesAccepted: storedUser?.rulesAccepted,
+      };
     },
     []
   );
@@ -130,38 +182,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       } catch (error) {
         console.error("Login failed", error);
-
-        try {
-          const fallbackUser = await fetchInviteByEntryId(entryId);
-
-          if (fallbackUser) {
-            setUser(fallbackUser);
-            saveStoredInviteSession(fallbackUser);
-            await firebaseSignOut(auth).catch(() => undefined);
-
-            return {
-              ok: true,
-              user: fallbackUser,
-            };
-          }
-        } catch (fallbackError) {
-          console.error("Local invite fallback failed", fallbackError);
-        }
-
         clearStoredInviteSession();
         setUser(null);
+        await firebaseSignOut(auth).catch(() => undefined);
 
         return {
           ok: false,
           reason:
-            error instanceof Error &&
-            error.message.toLowerCase().includes("invalid")
-              ? "invalid-entry-id"
+            error instanceof InviteRequestError
+              ? error.reason
               : "network-error",
           message:
-            error instanceof Error &&
-            error.message.toLowerCase().includes("invalid")
-              ? "Invalid Entry ID."
+            error instanceof InviteRequestError
+              ? error.message
               : "We could not verify your invite right now. Please try again.",
         };
       } finally {

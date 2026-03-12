@@ -17,22 +17,33 @@ const InviteEntryRoute = () => {
     let isActive = true;
 
     const resolveInvite = async () => {
-      const result = await login(entryId);
+      try {
+        const result = await login(entryId);
 
-      if (!isActive) {
-        return;
+        if (!isActive) {
+          return;
+        }
+
+        if (result.ok === true) {
+          navigate("/home", { replace: true });
+          return;
+        }
+
+        setStatus("error");
+        setMessage(result.message);
+      } catch (error) {
+        console.error("Invite route failed", error);
+
+        if (!isActive) {
+          return;
+        }
+
+        setStatus("error");
+        setMessage("We could not open your invite right now. Please try again.");
       }
-
-      if (result.ok) {
-        navigate("/home", { replace: true });
-        return;
-      }
-
-      setStatus("error");
-      setMessage(result.message);
     };
 
-    resolveInvite();
+    void resolveInvite();
 
     return () => {
       isActive = false;
@@ -67,7 +78,11 @@ const InviteEntryRoute = () => {
               <>
                 <button
                   type="button"
-                  onClick={() => navigate(`/login?entryId=${entryId}`, { replace: true })}
+                  onClick={() =>
+                    navigate(`/login?entryId=${encodeURIComponent(entryId)}`, {
+                      replace: true,
+                    })
+                  }
                   className="btn-gold w-full rounded-xl py-3 font-semibold"
                 >
                   Continue to Login
@@ -89,3 +104,4 @@ const InviteEntryRoute = () => {
 };
 
 export default InviteEntryRoute;
+

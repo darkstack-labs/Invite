@@ -1,30 +1,91 @@
-// Components
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+
 import AdminLayout from "../components/admin/AdminLayout";
 import AdminStats from "../components/admin/AdminStats";
 import RSVPTable from "../components/admin/RSPVTable";
 import SongsTable from "../components/admin/SongsTable";
 import SuggestionsTable from "../components/admin/SuggestionsTable";
-
-// Hooks
 import useRSVPs from "../hooks/useRSPVs";
 import useSongs from "../hooks/useSongs";
 import useSuggestions from "../hooks/useSuggestions";
-
-// Types
-import { RSVP, SongRequest, Suggestion, AdminStatsData } from "../types/admin";
+import type { AdminStatsData, RSVP } from "../types/admin";
 
 const AUTH_KEY = "admin-auth-session";
-export default function AdminDashboard(): JSX.Element {
-  /* ---------------- DATA HOOKS ---------------- */
-  // Real-time Firestore listeners
-  const rsvps = useRSVPs() ?? [];
-  const songs = useSongs() ?? [];
-  const suggestions = useSuggestions() ?? [];
 
-  /* ---------------- STATE ---------------- */
+const AdminLogin = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
+  const [passcode, setPasscode] = useState("");
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "#0b0b0b",
+        color: "#fff",
+        padding: "24px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "420px",
+          border: "1px solid #222",
+          borderRadius: "16px",
+          padding: "24px",
+          background: "#121212",
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Admin Access</h1>
+        <p style={{ color: "#888", marginTop: "8px" }}>
+          This local gate only protects the dashboard UI shell.
+        </p>
+        <input
+          type="password"
+          value={passcode}
+          onChange={(event) => setPasscode(event.target.value)}
+          placeholder="Enter any admin passcode"
+          style={{
+            width: "100%",
+            marginTop: "16px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            border: "1px solid #333",
+            background: "#0b0b0b",
+            color: "#fff",
+          }}
+        />
+        <button
+          type="button"
+          onClick={onLoginSuccess}
+          disabled={!passcode.trim()}
+          style={{
+            width: "100%",
+            marginTop: "16px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            border: "1px solid #f5b000",
+            background: "#f5b000",
+            color: "#111",
+            cursor: passcode.trim() ? "pointer" : "not-allowed",
+            fontWeight: 700,
+            opacity: passcode.trim() ? 1 : 0.6,
+          }}
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default function AdminDashboard(): JSX.Element {
+  const rsvps = useRSVPs();
+  const songs = useSongs();
+  const suggestions = useSuggestions();
+
   const [search, setSearch] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
-  
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
       return localStorage.getItem(AUTH_KEY) === "true";
@@ -33,36 +94,36 @@ export default function AdminDashboard(): JSX.Element {
     }
   });
 
-  /* ---------------- EFFECTS ---------------- */
-  // Debounce search input to optimize performance
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(search);
     }, 300);
+
     return () => clearTimeout(handler);
   }, [search]);
 
-  /* ---------------- DERIVED DATA ---------------- */
-  // Memoized guest filtering
   const filteredGuests = useMemo(() => {
     const query = debouncedSearch.toLowerCase().trim();
-    if (!query) return rsvps;
+
+    if (!query) {
+      return rsvps;
+    }
+
     return rsvps.filter((guest: RSVP) =>
       (guest?.name ?? "").toLowerCase().includes(query)
     );
-  }, [rsvps, debouncedSearch]);
+  }, [debouncedSearch, rsvps]);
 
-  // Memoized statistics
-  const stats: AdminStatsData = useMemo(() => {
-    return {
+  const stats: AdminStatsData = useMemo(
+    () => ({
       total: rsvps.length,
-      attending: rsvps.filter((r) => r.attendance === "yes").length,
-      veg: rsvps.filter((r) => r.mealPreference === "veg").length,
-      nonVeg: rsvps.filter((r) => r.mealPreference === "nonveg").length,
-    };
-  }, [rsvps]);
+      attending: rsvps.filter((rsvp) => rsvp.attendance === "yes").length,
+      veg: rsvps.filter((rsvp) => rsvp.mealPreference === "veg").length,
+      nonVeg: rsvps.filter((rsvp) => rsvp.mealPreference === "nonveg").length,
+    }),
+    [rsvps]
+  );
 
-  /* ---------------- HANDLERS ---------------- */
   const handleLogin = useCallback(() => {
     localStorage.setItem(AUTH_KEY, "true");
     setIsAuthenticated(true);
@@ -73,15 +134,12 @@ export default function AdminDashboard(): JSX.Element {
     setIsAuthenticated(false);
   }, []);
 
-  /* ---------------- AUTH GUARD ---------------- */
   if (!isAuthenticated) {
     return <AdminLogin onLoginSuccess={handleLogin} />;
   }
 
-  /* ---------------- RENDER ---------------- */
   return (
     <AdminLayout activeSection="Dashboard">
-      {/* Header & Logout */}
       <div style={headerActionStyle}>
         <div>
           <h1 style={titleStyle}>Event Overview</h1>
@@ -90,8 +148,12 @@ export default function AdminDashboard(): JSX.Element {
         <button
           onClick={handleLogout}
           style={logoutButtonStyle}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,77,79,0.1)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.background = "rgba(255,77,79,0.1)";
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.background = "transparent";
+          }}
         >
           Sign Out
         </button>
@@ -99,23 +161,19 @@ export default function AdminDashboard(): JSX.Element {
 
       <hr style={dividerStyle} />
 
-      {/* Statistics Section */}
       <AdminStats stats={stats} />
 
-      {/* Main Management Section */}
       <div style={contentGridStyle}>
-        
-        {/* RSVPs (Full Width) */}
         <section style={sectionStyle}>
           <div style={toolbarStyle}>
             <h2 style={sectionTitleStyle}>Guest List</h2>
             <div style={searchContainerStyle}>
-              <span style={searchIconStyle}>🔍</span>
+              <span style={searchIconStyle}>Search</span>
               <input
                 type="text"
                 placeholder="Search by guest name..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(event) => setSearch(event.target.value)}
                 style={searchInputStyle}
               />
             </div>
@@ -123,18 +181,14 @@ export default function AdminDashboard(): JSX.Element {
           <RSVPTable guests={filteredGuests} />
         </section>
 
-        {/* Requests & Feedback (Split Grid) */}
         <div style={splitGridStyle}>
           <SongsTable songs={songs} />
           <SuggestionsTable suggestions={suggestions} />
         </div>
-
       </div>
     </AdminLayout>
   );
 }
-
-/* ---------------- STYLES (Production Dark Theme) ---------------- */
 
 const headerActionStyle: React.CSSProperties = {
   display: "flex",
@@ -209,13 +263,15 @@ const searchIconStyle: React.CSSProperties = {
   left: "12px",
   top: "50%",
   transform: "translateY(-50%)",
-  fontSize: "14px",
+  fontSize: "12px",
   opacity: 0.5,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
 };
 
 const searchInputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px 12px 12px 40px",
+  padding: "12px 12px 12px 64px",
   backgroundColor: "#161616",
   border: "1px solid #333",
   borderRadius: "10px",
@@ -229,8 +285,4 @@ const splitGridStyle: React.CSSProperties = {
   gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
   gap: "30px",
   alignItems: "start",
-};
-
-const sectionSpacer: React.CSSProperties = {
-  marginTop: "40px"
 };

@@ -10,11 +10,6 @@ import {
 
 import { db } from "@/firebase";
 
-import {
-  getLocalGuestByEntryId,
-  getLocalGuestByName,
-  listLocalGuests,
-} from "../localGuestProfiles";
 import { resolveLegacyGuestGender } from "../legacyGuestMetadata";
 import type { UserProfile } from "../types";
 import {
@@ -28,6 +23,7 @@ const GUESTS_COLLECTION = "guests";
 const ENTRY_ID_FIELDS = ["entryId", "entryCode"] as const;
 const NORMALIZED_NAME_FIELDS = ["normalizedName", "nameKey"] as const;
 
+let guestDirectoryCache: UserProfile[] | null = null;
 let guestDirectoryPromise: Promise<UserProfile[]> | null = null;
 
 type FirestoreGuestRecord = {
@@ -118,10 +114,10 @@ export const fetchInviteByEntryId = async (
       }
     }
   } catch (error) {
-    console.warn("Falling back to local invite directory by entry ID", error);
+    console.warn("Unable to load invite by entry ID", error);
   }
 
-  return getLocalGuestByEntryId(entryId);
+  return null;
 };
 
 export const lookupInviteByName = async (
@@ -168,40 +164,45 @@ export const lookupInviteByName = async (
       }
     }
   } catch (error) {
-    console.warn("Falling back to local invite directory by name", error);
+    console.warn("Unable to load invite by name", error);
   }
 
-  return getLocalGuestByName(formattedName);
+  return null;
+};
+
+export const clearInviteGuestDirectoryCache = () => {
+  guestDirectoryCache = null;
+  guestDirectoryPromise = null;
 };
 
 export const listInviteGuests = async (forceRefresh = false) => {
+  if (!forceRefresh && guestDirectoryCache) {
+    return guestDirectoryCache;
+  }
+
   if (!forceRefresh && guestDirectoryPromise) {
     return guestDirectoryPromise;
   }
 
   guestDirectoryPromise = getDocs(collection(db, GUESTS_COLLECTION))
-    .then((snapshot) =>
-      dedupeGuests([
-        ...snapshot.docs
+    .then((snapshot) => {
+      const guests = dedupeGuests(
+        snapshot.docs
           .map((docSnapshot) =>
             mapGuestRecord(
               docSnapshot.id,
               docSnapshot.data() as FirestoreGuestRecord
             )
           )
-          .filter((guest): guest is UserProfile => Boolean(guest)),
-        ...listLocalGuests(),
-      ])
-    )
-    .catch((error) => {
-      console.warn("Falling back to local invite directory list", error);
-      return listLocalGuests();
+          .filter((guest): guest is UserProfile => Boolean(guest))
+      );
+
+      guestDirectoryCache = guests;
+      return guests;
+    })
+    .finally(() => {
+      guestDirectoryPromise = null;
     });
 
-  try {
-    return await guestDirectoryPromise;
-  } catch (error) {
-    guestDirectoryPromise = null;
-    throw error;
-  }
+  return guestDirectoryPromise;
 };

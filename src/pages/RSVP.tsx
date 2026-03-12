@@ -110,7 +110,7 @@ const RSVP = () => {
       }
     };
 
-    runCheck();
+    void runCheck();
 
     return () => {
       isActive = false;
@@ -161,7 +161,9 @@ const RSVP = () => {
         entryId: user.entryId,
         attendance: formData.attendance,
         mealPreference:
-          formData.attendance === 'yes' ? formData.mealPreference : null,
+          formData.attendance === 'yes'
+            ? (formData.mealPreference as Meal)
+            : null,
         dietary: formData.dietary
       });
 

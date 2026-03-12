@@ -1,28 +1,23 @@
 import { useEffect, useState } from "react";
-import { db } from "../firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 
-export default function useSuggestions() {
+import { db } from "../firebase";
+import type { Suggestion } from "../types/admin";
 
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+export default function useSuggestions() {
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
   useEffect(() => {
+    const unsub = onSnapshot(collection(db, "suggestions"), (snap) => {
+      const data = snap.docs.map((docSnapshot) => ({
+        id: docSnapshot.id,
+        ...(docSnapshot.data() as Omit<Suggestion, "id">),
+      }));
 
-    const unsub = onSnapshot(
-      collection(db, "suggestions"),
-      (snap) => {
-
-        const data = snap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-        setSuggestions(data);
-      }
-    );
+      setSuggestions(data);
+    });
 
     return () => unsub();
-
   }, []);
 
   return suggestions;

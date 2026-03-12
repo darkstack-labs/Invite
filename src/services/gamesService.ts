@@ -1,10 +1,4 @@
-import {
-  arrayUnion,
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 
 import { auth, db } from "@/firebase";
 
@@ -49,9 +43,6 @@ export interface VoteSubmission {
 
 const SELF_SUBMISSIONS_COLLECTION = "SELF NOMINATION SUBMISSIONS";
 
-const isFallbackEligibleStatus = (status: number) =>
-  status >= 500 || status === 401 || status === 403;
-
 const parseApiErrorMessage = async (response: Response) => {
   const payload = (await response.json().catch(() => null)) as
     | { message?: string }
@@ -60,49 +51,33 @@ const parseApiErrorMessage = async (response: Response) => {
   return payload?.message || "";
 };
 
-const submitSelfNominationViaClient = async (
-  submission: SelfNominationSubmission
-) => {
-  const submissionRef = doc(db, SELF_SUBMISSIONS_COLLECTION, submission.entryId);
-  const existingSubmission = await getDoc(submissionRef);
+const getGuestIdToken = async () => {
+  const currentUser = auth.currentUser;
 
-  if (existingSubmission.exists()) {
-    throw new Error("Your self nominations are already locked in.");
+  if (!currentUser) {
+    throw new Error("Your invite session expired. Please log in again.");
   }
 
-  await setDoc(submissionRef, {
-    ...submission,
-    createdAt: serverTimestamp(),
-  });
-
-  await setDoc(
-    doc(db, "GAMES EVENT CATEGORIES", GAMES_EVENT_NAME),
-    {
-      eventName: GAMES_EVENT_NAME,
-      updatedAt: serverTimestamp(),
-      ...Object.fromEntries(
-        submission.categories.map((category) => [category, arrayUnion(submission.name)])
-      ),
-    },
-    { merge: true }
-  );
+  return currentUser.getIdToken();
 };
 
-const submitVoteViaClient = async (
-  collectionName: VoteCollectionName,
-  submission: VoteSubmission
-) => {
-  const voteRef = doc(db, collectionName, submission.submittedByEntryId);
-  const existingSubmission = await getDoc(voteRef);
+const postGamesAction = async (payload: Record<string, unknown>) => {
+  const idToken = await getGuestIdToken();
+  const response = await fetch("/api/games", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
 
-  if (existingSubmission.exists()) {
-    throw new Error("This vote has already been submitted.");
+  if (response.ok) {
+    return;
   }
 
-  await setDoc(voteRef, {
-    ...submission,
-    createdAt: serverTimestamp(),
-  });
+  const message = await parseApiErrorMessage(response);
+  throw new Error(message || "We could not save your games submission.");
 };
 
 export const getSelfNominationSubmission = async (
@@ -124,51 +99,10 @@ export const getSelfNominationSubmission = async (
 export const submitSelfNominationSubmission = async (
   submission: SelfNominationSubmission
 ) => {
-  const idToken = await auth.currentUser?.getIdToken();
-
-  if (!idToken) {
-    return submitSelfNominationViaClient(submission);
-  }
-
-  try {
-    const response = await fetch("/api/games", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        kind: "selfNomination",
-        categories: submission.categories,
-      }),
-    });
-
-    if (response.ok) {
-      return;
-    }
-
-    const message = await parseApiErrorMessage(response);
-
-    if (isFallbackEligibleStatus(response.status)) {
-      return submitSelfNominationViaClient(submission);
-    }
-
-    throw new Error(message || "SELF_NOMINATION_FAILED");
-  } catch (error) {
-    if (error instanceof Error && error.message !== "SELF_NOMINATION_FAILED") {
-      const loweredMessage = error.message.toLowerCase();
-
-      if (
-        loweredMessage.includes("failed to fetch") ||
-        loweredMessage.includes("network") ||
-        loweredMessage.includes("auth_required")
-      ) {
-        return submitSelfNominationViaClient(submission);
-      }
-    }
-
-    throw error;
-  }
+  await postGamesAction({
+    kind: "selfNomination",
+    categories: submission.categories,
+  });
 };
 
 export const getVoteSubmission = async (
@@ -190,51 +124,10 @@ export const submitVoteSubmission = async (
   collectionName: VoteCollectionName,
   submission: VoteSubmission
 ) => {
-  const idToken = await auth.currentUser?.getIdToken();
-
-  if (!idToken) {
-    return submitVoteViaClient(collectionName, submission);
-  }
-
-  try {
-    const response = await fetch("/api/games", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        kind: "vote",
-        collectionName,
-        voteTitle: submission.voteTitle,
-        selections: submission.selections,
-      }),
-    });
-
-    if (response.ok) {
-      return;
-    }
-
-    const message = await parseApiErrorMessage(response);
-
-    if (isFallbackEligibleStatus(response.status)) {
-      return submitVoteViaClient(collectionName, submission);
-    }
-
-    throw new Error(message || "VOTE_SUBMISSION_FAILED");
-  } catch (error) {
-    if (error instanceof Error && error.message !== "VOTE_SUBMISSION_FAILED") {
-      const loweredMessage = error.message.toLowerCase();
-
-      if (
-        loweredMessage.includes("failed to fetch") ||
-        loweredMessage.includes("network") ||
-        loweredMessage.includes("auth_required")
-      ) {
-        return submitVoteViaClient(collectionName, submission);
-      }
-    }
-
-    throw error;
-  }
+  await postGamesAction({
+    kind: "vote",
+    collectionName,
+    voteTitle: submission.voteTitle,
+    selections: submission.selections,
+  });
 };

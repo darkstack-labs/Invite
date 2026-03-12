@@ -10,10 +10,14 @@ service cloud.firestore {
       return value is string && value.size() <= maxLength;
     }
 
-    function hasMatchingGuestEntry(entryId) {
+    function isGuest() {
       return request.auth != null &&
         request.auth.token.role == 'guest' &&
-        request.auth.token.entryId == entryId;
+        request.auth.token.entryId is string;
+    }
+
+    function hasMatchingGuestEntry(entryId) {
+      return isGuest() && request.auth.token.entryId == entryId;
     }
 
     function isValidRsvp(entryId) {
@@ -36,8 +40,11 @@ service cloud.firestore {
         isNonEmptyString(request.resource.data.name, 80) &&
         (request.resource.data.attendance == 'yes' ||
           request.resource.data.attendance == 'no') &&
-        (request.resource.data.mealPreference == 'veg' ||
-          request.resource.data.mealPreference == 'nonveg') &&
+        ((request.resource.data.attendance == 'yes' &&
+            (request.resource.data.mealPreference == 'veg' ||
+              request.resource.data.mealPreference == 'nonveg')) ||
+          (request.resource.data.attendance == 'no' &&
+            request.resource.data.mealPreference == null)) &&
         request.resource.data.timestamp is timestamp &&
         (!request.resource.data.keys().hasAny(['dietary']) ||
           isShortString(request.resource.data.dietary, 250));
@@ -82,22 +89,6 @@ service cloud.firestore {
         isNonEmptyString(request.resource.data.entryId, 20) &&
         isNonEmptyString(request.resource.data.suggestion, 500) &&
         request.resource.data.timestamp is timestamp;
-    }
-
-    function isValidBadge() {
-      return request.resource.data.keys().hasOnly([
-          'name',
-          'badgeText',
-          'color'
-        ]) &&
-        request.resource.data.keys().hasAll([
-          'name',
-          'badgeText',
-          'color'
-        ]) &&
-        isNonEmptyString(request.resource.data.name, 80) &&
-        isNonEmptyString(request.resource.data.badgeText, 80) &&
-        isNonEmptyString(request.resource.data.color, 40);
     }
 
     function isValidSelfNominationSubmission(entryId) {
@@ -190,79 +181,76 @@ service cloud.firestore {
     }
 
     match /guests/{guestId} {
-      allow get, list: if true;
+      allow get, list: if isGuest();
       allow create, update, delete: if false;
     }
 
     match /rsvps/{entryId} {
-      allow get, list: if true;
-      allow create, update: if isValidRsvp(entryId);
-      allow delete: if true;
+      allow get: if hasMatchingGuestEntry(entryId);
+      allow list: if false;
+      allow create: if hasMatchingGuestEntry(entryId) &&
+        !exists(/databases/$(database)/documents/rsvps/$(entryId)) &&
+        isValidRsvp(entryId);
+      allow update, delete: if false;
     }
 
     match /songRequests/{requestId} {
-      allow get, list: if true;
-      allow create: if isValidSongRequest();
+      allow get, list: if false;
+      allow create: if isGuest() &&
+        request.resource.data.entryId == request.auth.token.entryId &&
+        isValidSongRequest();
       allow update, delete: if false;
     }
 
     match /suggestions/{suggestionId} {
-      allow get, list: if true;
-      allow create: if isValidSuggestion();
+      allow get, list: if false;
+      allow create: if isGuest() &&
+        request.resource.data.entryId == request.auth.token.entryId &&
+        isValidSuggestion();
       allow update, delete: if false;
     }
 
     match /badges/{badgeId} {
-      allow get, list: if false;
-      allow create: if isValidBadge();
-      allow update, delete: if false;
+      allow get, list, create, update, delete: if false;
     }
 
     match /SELF NOMINATION SUBMISSIONS/{entryId} {
       allow get: if hasMatchingGuestEntry(entryId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow list, create, update, delete: if false;
     }
 
     match /GAMES EVENT CATEGORIES/{eventId} {
-      allow get, list: if false;
-      allow create, update, delete: if false;
+      allow get, list, create, update, delete: if false;
     }
 
     match /CYS VOTES/{entryId} {
       allow get: if hasMatchingGuestEntry(entryId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow list, create, update, delete: if false;
     }
 
     match /MPM VOTES/{entryId} {
       allow get: if hasMatchingGuestEntry(entryId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow list, create, update, delete: if false;
     }
 
     match /MPF VOTES/{entryId} {
       allow get: if hasMatchingGuestEntry(entryId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow list, create, update, delete: if false;
     }
 
     match /BMD VOTES/{entryId} {
       allow get: if hasMatchingGuestEntry(entryId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow list, create, update, delete: if false;
     }
 
     match /BFD VOTES/{entryId} {
       allow get: if hasMatchingGuestEntry(entryId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow list, create, update, delete: if false;
     }
 
     match /SWDBITP VOTES/{entryId} {
       allow get: if hasMatchingGuestEntry(entryId);
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow list, create, update, delete: if false;
     }
 
     match /{document=**} {

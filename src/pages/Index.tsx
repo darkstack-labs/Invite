@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import ParticleBackground from '@/components/ParticleBackground';
 import TypewriterText from '@/components/TypewriterText';
-import { lookupInviteByName } from '@/invite/services/guestDirectory';
+import { lookupInviteByName } from '@/invite/services/inviteLookup';
 import { formatGuestName } from '@/invite/utils';
 import { Crown, Sparkles, Star, KeyRound } from 'lucide-react';
 
@@ -73,7 +73,7 @@ const Index = () => {
     try {
       const invite = await lookupInviteByName(formattedName);
 
-      if (invite) {
+      if (invite.found) {
         setHasInviteMatch(true);
         setMessage({
           text: "You're on the list. Head to login with your Entry ID to continue.",

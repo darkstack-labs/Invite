@@ -66,11 +66,15 @@ const Login = () => {
     try {
       const result = await login(entryId);
 
-      if (result.ok) {
-        navigate(redirectPath, { replace: true });
-      } else {
+      if (result.ok === false) {
         setError(result.message);
+        return;
       }
+
+      navigate(redirectPath, { replace: true });
+    } catch (loginError) {
+      console.error('Login failed unexpectedly', loginError);
+      setError('We could not verify your invite right now. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -228,3 +232,4 @@ const Login = () => {
 };
 
 export default Login;
+

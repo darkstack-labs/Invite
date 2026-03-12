@@ -1,7 +1,78 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { IncomingMessage } from "node:http";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+
+type DevApiRequest = IncomingMessage & {
+  body?: string;
+};
+
+type DevApiHandler = (
+  req: DevApiRequest,
+  res: NodeJS.WritableStream & {
+    setHeader: (name: string, value: string) => void;
+    statusCode: number;
+    writableEnded: boolean;
+    end: (chunk?: string) => void;
+  }
+) => Promise<void> | void;
+
+const loadDevApiHandler = async (pathname: string): Promise<DevApiHandler | null> => {
+  switch (pathname) {
+    case "/games":
+      return (await import("./api/games.js")).default;
+    case "/invite-lookup":
+      return (await import("./api/invite-lookup.js")).default;
+    case "/login":
+      return (await import("./api/login.js")).default;
+    default:
+      return null;
+  }
+};
+
+const readRequestBody = async (req: DevApiRequest) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.body !== undefined) {
+    return;
+  }
+
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  req.body = Buffer.concat(chunks).toString("utf8");
+};
+
+const devApiPlugin = (): Plugin => ({
+  name: "dev-api-middleware",
+  apply: "serve",
+  configureServer(server) {
+    server.middlewares.use("/api", async (req, res, next) => {
+      const pathname = (req.url ?? "").split("?")[0] || "/";
+      const handler = await loadDevApiHandler(
+        pathname.startsWith("/") ? pathname : `/${pathname}`
+      );
+
+      if (!handler) {
+        next();
+        return;
+      }
+
+      try {
+        await readRequestBody(req as DevApiRequest);
+        await handler(req as DevApiRequest, res);
+
+        if (!res.writableEnded) {
+          res.end();
+        }
+      } catch (error) {
+        next(error as Error);
+      }
+    });
+  },
+});
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -11,6 +82,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    devApiPlugin(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt", "placeholder.svg"],
