@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,236 +7,72 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
-const fallbackServiceAccountPath = path.resolve(
-  currentDirectory,
-  "../serviceAccountKey.json"
-);
 
-class ApiError extends Error {
-  constructor(statusCode, message) {
-    super(message);
-    this.name = "ApiError";
-    this.statusCode = statusCode;
-  }
-}
-
-const sanitizeEntryId = (value) => {
-  if (typeof value !== "string") {
-    return "";
-  }
+function sanitizeEntryId(value: unknown): string {
+  if (typeof value !== "string") return "";
 
   const digitsOnly = value.replace(/\D/g, "");
   return /^(\d{4}|\d{6})$/.test(digitsOnly) ? digitsOnly : "";
-};
+}
 
-const normalizePrivateKey = (value) =>
-  typeof value === "string"
-    ? value
-        .trim()
-        .replace(/^"(.*)"$/, "$1")
-        .replace(/^'(.*)'$/, "$1")
-        .replace(/\\r/g, "")
-        .replace(/\\n/g, "\n")
-    : "";
-
-const normalizeServiceAccountShape = (raw) => {
-  if (!raw || typeof raw !== "object") {
-    return null;
+function loadServiceAccount() {
+  if (process.env.FIREBASE_PROJECT_ID) {
+    return {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+    };
   }
 
-  return {
-    projectId: raw.projectId ?? raw.project_id ?? "",
-    clientEmail: raw.clientEmail ?? raw.client_email ?? "",
-    privateKey: normalizePrivateKey(raw.privateKey ?? raw.private_key ?? ""),
-  };
-};
-
-const parseServiceAccountJson = (rawValue, sourceLabel) => {
-  if (typeof rawValue !== "string" || !rawValue.trim()) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue);
-  } catch (directError) {
-    try {
-      const decoded = Buffer.from(rawValue, "base64").toString("utf8");
-      return JSON.parse(decoded);
-    } catch {
-      throw new Error(
-        `Invalid ${sourceLabel} value. Expected JSON or base64-encoded JSON.`
-      );
-    }
-  }
-};
-
-const missingCredentialFields = (serviceAccount) => {
-  const missing = [];
-
-  if (!serviceAccount?.projectId) {
-    missing.push("projectId");
-  }
-
-  if (!serviceAccount?.clientEmail) {
-    missing.push("clientEmail");
-  }
-
-  if (!serviceAccount?.privateKey) {
-    missing.push("privateKey");
-  }
-
-  return missing;
-};
-
-const readServiceAccountFromEnv = () => {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const serviceAccountJson = parseServiceAccountJson(
-      process.env.FIREBASE_SERVICE_ACCOUNT,
-      "FIREBASE_SERVICE_ACCOUNT"
-    );
-    const serviceAccount = normalizeServiceAccountShape(serviceAccountJson);
-    const missing = missingCredentialFields(serviceAccount);
-
-    if (missing.length > 0) {
-      throw new Error(
-        `FIREBASE_SERVICE_ACCOUNT is missing required fields: ${missing.join(", ")}.`
-      );
-    }
-
-    return serviceAccount;
-  }
-
-  const projectId = process.env.FIREBASE_PROJECT_ID ?? "";
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL ?? "";
-  const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
-
-  const hasAnyEnvCredentialField = Boolean(projectId || clientEmail || privateKey);
-
-  if (!hasAnyEnvCredentialField) {
-    return null;
-  }
-
-  const serviceAccount = {
-    projectId,
-    clientEmail,
-    privateKey,
-  };
-
-  const missing = missingCredentialFields(serviceAccount);
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Firebase Admin env credentials are incomplete. Missing: ${missing.join(", ")}.`
-    );
-  }
-
-  return serviceAccount;
-};
-
-const loadServiceAccount = () => {
-  const fromEnv = readServiceAccountFromEnv();
-
-  if (fromEnv) {
-    return fromEnv;
-  }
-
-  if (existsSync(fallbackServiceAccountPath)) {
-    const fileRaw = readFileSync(fallbackServiceAccountPath, "utf8");
-    const serviceAccount = normalizeServiceAccountShape(
-      parseServiceAccountJson(fileRaw, "serviceAccountKey.json")
-    );
-
-    const missing = missingCredentialFields(serviceAccount);
-
-    if (missing.length > 0) {
-      throw new Error(
-        `serviceAccountKey.json is missing required fields: ${missing.join(", ")}.`
-      );
-    }
-
-    return serviceAccount;
-  }
-
-  throw new Error(
-    "Firebase Admin credentials are missing. Configure FIREBASE_SERVICE_ACCOUNT or FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY."
+  const serviceAccountPath = path.resolve(
+    currentDirectory,
+    "../serviceAccountKey.json"
   );
-};
 
-const createAdminApp = () => {
-  const existing = getApps()[0];
+  return JSON.parse(readFileSync(serviceAccountPath, "utf8"));
+}
 
-  if (existing) {
-    return existing;
-  }
+const serviceAccount = loadServiceAccount();
 
-  const serviceAccount = loadServiceAccount();
-
-  return initializeApp({
-    credential: cert(serviceAccount),
-    projectId: serviceAccount.projectId,
+const adminApp =
+  getApps()[0] ??
+  initializeApp({
+    credential: cert(serviceAccount as any),
   });
-};
-
-const adminApp = createAdminApp();
 
 export const adminAuth = getAuth(adminApp);
 export const adminDb = getFirestore(adminApp);
 
-export const isApiError = (error) =>
-  Boolean(error) &&
-  typeof error === "object" &&
-  Number.isInteger(error.statusCode) &&
-  typeof error.message === "string";
-
-export const sendJson = (res, statusCode, payload) => {
+export function sendJson(res: any, statusCode: number, payload: unknown) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Cache-Control", "no-store");
   res.end(JSON.stringify(payload));
-};
+}
 
-export const readJsonBody = (req) => {
-  if (!req.body) {
-    return {};
-  }
-
-  if (Buffer.isBuffer(req.body)) {
-    try {
-      return JSON.parse(req.body.toString("utf8") || "{}");
-    } catch {
-      throw new ApiError(400, "Invalid JSON request body.");
-    }
-  }
+export function readJsonBody(req: any) {
+  if (!req.body) return {};
 
   if (typeof req.body === "string") {
     try {
-      return JSON.parse(req.body || "{}");
+      return JSON.parse(req.body);
     } catch {
-      throw new ApiError(400, "Invalid JSON request body.");
+      return {};
     }
   }
 
-  if (typeof req.body !== "object" || Array.isArray(req.body)) {
-    throw new ApiError(400, "Invalid request body.");
-  }
-
   return req.body;
-};
+}
 
-export const verifyGuestRequest = async (req, res) => {
-  const rawAuthorizationHeader =
-    req.headers.authorization ?? req.headers.Authorization;
-  const authorizationHeader = Array.isArray(rawAuthorizationHeader)
-    ? rawAuthorizationHeader[0]
-    : rawAuthorizationHeader;
+export async function verifyGuestRequest(req: any, res: any) {
+  const authorizationHeader =
+    req.headers.authorization || req.headers.Authorization;
 
   if (
     typeof authorizationHeader !== "string" ||
     !authorizationHeader.startsWith("Bearer ")
   ) {
-    sendJson(res, 401, {
-      message: "Authentication required.",
-    });
+    sendJson(res, 401, { message: "Authentication required." });
     return null;
   }
 
@@ -244,10 +80,11 @@ export const verifyGuestRequest = async (req, res) => {
     const decodedToken = await adminAuth.verifyIdToken(
       authorizationHeader.slice(7).trim()
     );
+
     const entryId = sanitizeEntryId(decodedToken.entryId);
 
     if (decodedToken.role !== "guest" || !entryId) {
-      throw new Error("Invalid guest token claims");
+      throw new Error("Invalid guest token");
     }
 
     return {
@@ -263,12 +100,12 @@ export const verifyGuestRequest = async (req, res) => {
           : "Unknown",
     };
   } catch (error) {
-    console.error("Failed to verify guest token", {
-      message: error instanceof Error ? error.message : String(error),
-    });
+    console.error("Failed to verify guest token", error);
+
     sendJson(res, 401, {
       message: "Your invite session has expired. Please log in again.",
     });
+
     return null;
   }
-};
+}
