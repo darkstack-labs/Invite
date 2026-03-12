@@ -30,7 +30,14 @@ const sanitizeEntryId = (value) => {
 };
 
 const normalizePrivateKey = (value) =>
-  typeof value === "string" ? value.replace(/\\n/g, "\n") : "";
+  typeof value === "string"
+    ? value
+        .trim()
+        .replace(/^"(.*)"$/, "$1")
+        .replace(/^'(.*)'$/, "$1")
+        .replace(/\\r/g, "")
+        .replace(/\\n/g, "\n")
+    : "";
 
 const normalizeServiceAccountShape = (raw) => {
   if (!raw || typeof raw !== "object") {
@@ -44,39 +51,110 @@ const normalizeServiceAccountShape = (raw) => {
   };
 };
 
+const parseServiceAccountJson = (rawValue, sourceLabel) => {
+  if (typeof rawValue !== "string" || !rawValue.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawValue);
+  } catch (directError) {
+    try {
+      const decoded = Buffer.from(rawValue, "base64").toString("utf8");
+      return JSON.parse(decoded);
+    } catch {
+      throw new Error(
+        `Invalid ${sourceLabel} value. Expected JSON or base64-encoded JSON.`
+      );
+    }
+  }
+};
+
+const missingCredentialFields = (serviceAccount) => {
+  const missing = [];
+
+  if (!serviceAccount?.projectId) {
+    missing.push("projectId");
+  }
+
+  if (!serviceAccount?.clientEmail) {
+    missing.push("clientEmail");
+  }
+
+  if (!serviceAccount?.privateKey) {
+    missing.push("privateKey");
+  }
+
+  return missing;
+};
+
 const readServiceAccountFromEnv = () => {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    return normalizeServiceAccountShape(
-      JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    const serviceAccountJson = parseServiceAccountJson(
+      process.env.FIREBASE_SERVICE_ACCOUNT,
+      "FIREBASE_SERVICE_ACCOUNT"
     );
+    const serviceAccount = normalizeServiceAccountShape(serviceAccountJson);
+    const missing = missingCredentialFields(serviceAccount);
+
+    if (missing.length > 0) {
+      throw new Error(
+        `FIREBASE_SERVICE_ACCOUNT is missing required fields: ${missing.join(", ")}.`
+      );
+    }
+
+    return serviceAccount;
   }
 
   const projectId = process.env.FIREBASE_PROJECT_ID ?? "";
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL ?? "";
   const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
-  if (!projectId && !clientEmail && !privateKey) {
+  const hasAnyEnvCredentialField = Boolean(projectId || clientEmail || privateKey);
+
+  if (!hasAnyEnvCredentialField) {
     return null;
   }
 
-  return {
+  const serviceAccount = {
     projectId,
     clientEmail,
     privateKey,
   };
+
+  const missing = missingCredentialFields(serviceAccount);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Firebase Admin env credentials are incomplete. Missing: ${missing.join(", ")}.`
+    );
+  }
+
+  return serviceAccount;
 };
 
 const loadServiceAccount = () => {
   const fromEnv = readServiceAccountFromEnv();
 
-  if (fromEnv?.projectId && fromEnv?.clientEmail && fromEnv?.privateKey) {
+  if (fromEnv) {
     return fromEnv;
   }
 
   if (existsSync(fallbackServiceAccountPath)) {
-    return normalizeServiceAccountShape(
-      JSON.parse(readFileSync(fallbackServiceAccountPath, "utf8"))
+    const fileRaw = readFileSync(fallbackServiceAccountPath, "utf8");
+    const serviceAccount = normalizeServiceAccountShape(
+      parseServiceAccountJson(fileRaw, "serviceAccountKey.json")
     );
+
+    const missing = missingCredentialFields(serviceAccount);
+
+    if (missing.length > 0) {
+      throw new Error(
+        `serviceAccountKey.json is missing required fields: ${missing.join(", ")}.`
+      );
+    }
+
+    return serviceAccount;
   }
 
   throw new Error(
@@ -93,16 +171,9 @@ const createAdminApp = () => {
 
   const serviceAccount = loadServiceAccount();
 
-  if (
-    !serviceAccount?.projectId ||
-    !serviceAccount?.clientEmail ||
-    !serviceAccount?.privateKey
-  ) {
-    throw new Error("Firebase Admin credentials are incomplete.");
-  }
-
   return initializeApp({
     credential: cert(serviceAccount),
+    projectId: serviceAccount.projectId,
   });
 };
 
@@ -127,6 +198,14 @@ export const sendJson = (res, statusCode, payload) => {
 export const readJsonBody = (req) => {
   if (!req.body) {
     return {};
+  }
+
+  if (Buffer.isBuffer(req.body)) {
+    try {
+      return JSON.parse(req.body.toString("utf8") || "{}");
+    } catch {
+      throw new ApiError(400, "Invalid JSON request body.");
+    }
   }
 
   if (typeof req.body === "string") {
