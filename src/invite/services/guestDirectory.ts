@@ -10,6 +10,11 @@ import {
 
 import { db } from "@/firebase";
 
+import {
+  getLocalGuestByEntryId,
+  getLocalGuestByName,
+  listLocalGuests,
+} from "../localGuestProfiles";
 import { resolveLegacyGuestGender } from "../legacyGuestMetadata";
 import type { UserProfile } from "../types";
 import {
@@ -81,38 +86,42 @@ export const fetchInviteByEntryId = async (
     return null;
   }
 
-  const directSnapshot = await getDoc(doc(db, GUESTS_COLLECTION, entryId));
-  const directGuest = mapGuestRecord(
-    directSnapshot.id,
-    directSnapshot.data() as FirestoreGuestRecord | undefined
-  );
-
-  if (directGuest) {
-    return directGuest;
-  }
-
-  for (const fieldName of ENTRY_ID_FIELDS) {
-    const guestQuery = query(
-      collection(db, GUESTS_COLLECTION),
-      where(fieldName, "==", entryId),
-      limit(1)
+  try {
+    const directSnapshot = await getDoc(doc(db, GUESTS_COLLECTION, entryId));
+    const directGuest = mapGuestRecord(
+      directSnapshot.id,
+      directSnapshot.data() as FirestoreGuestRecord | undefined
     );
-    const snapshot = await getDocs(guestQuery);
-    const guestDoc = snapshot.docs[0];
 
-    if (guestDoc) {
-      const guest = mapGuestRecord(
-        guestDoc.id,
-        guestDoc.data() as FirestoreGuestRecord
+    if (directGuest) {
+      return directGuest;
+    }
+
+    for (const fieldName of ENTRY_ID_FIELDS) {
+      const guestQuery = query(
+        collection(db, GUESTS_COLLECTION),
+        where(fieldName, "==", entryId),
+        limit(1)
       );
+      const snapshot = await getDocs(guestQuery);
+      const guestDoc = snapshot.docs[0];
 
-      if (guest) {
-        return guest;
+      if (guestDoc) {
+        const guest = mapGuestRecord(
+          guestDoc.id,
+          guestDoc.data() as FirestoreGuestRecord
+        );
+
+        if (guest) {
+          return guest;
+        }
       }
     }
+  } catch (error) {
+    console.warn("Falling back to local invite directory by entry ID", error);
   }
 
-  return null;
+  return getLocalGuestByEntryId(entryId);
 };
 
 export const lookupInviteByName = async (
@@ -124,41 +133,45 @@ export const lookupInviteByName = async (
     return null;
   }
 
-  const exactNameQuery = query(
-    collection(db, GUESTS_COLLECTION),
-    where("name", "==", formattedName),
-    limit(1)
-  );
-  const exactNameSnapshot = await getDocs(exactNameQuery);
-  const exactNameMatch = exactNameSnapshot.docs[0];
-
-  if (exactNameMatch) {
-    return mapGuestRecord(
-      exactNameMatch.id,
-      exactNameMatch.data() as FirestoreGuestRecord
-    );
-  }
-
-  const normalizedName = normalizeNameKey(formattedName);
-
-  for (const fieldName of NORMALIZED_NAME_FIELDS) {
-    const normalizedQuery = query(
+  try {
+    const exactNameQuery = query(
       collection(db, GUESTS_COLLECTION),
-      where(fieldName, "==", normalizedName),
+      where("name", "==", formattedName),
       limit(1)
     );
-    const normalizedSnapshot = await getDocs(normalizedQuery);
-    const normalizedMatch = normalizedSnapshot.docs[0];
+    const exactNameSnapshot = await getDocs(exactNameQuery);
+    const exactNameMatch = exactNameSnapshot.docs[0];
 
-    if (normalizedMatch) {
+    if (exactNameMatch) {
       return mapGuestRecord(
-        normalizedMatch.id,
-        normalizedMatch.data() as FirestoreGuestRecord
+        exactNameMatch.id,
+        exactNameMatch.data() as FirestoreGuestRecord
       );
     }
+
+    const normalizedName = normalizeNameKey(formattedName);
+
+    for (const fieldName of NORMALIZED_NAME_FIELDS) {
+      const normalizedQuery = query(
+        collection(db, GUESTS_COLLECTION),
+        where(fieldName, "==", normalizedName),
+        limit(1)
+      );
+      const normalizedSnapshot = await getDocs(normalizedQuery);
+      const normalizedMatch = normalizedSnapshot.docs[0];
+
+      if (normalizedMatch) {
+        return mapGuestRecord(
+          normalizedMatch.id,
+          normalizedMatch.data() as FirestoreGuestRecord
+        );
+      }
+    }
+  } catch (error) {
+    console.warn("Falling back to local invite directory by name", error);
   }
 
-  return null;
+  return getLocalGuestByName(formattedName);
 };
 
 export const listInviteGuests = async (forceRefresh = false) => {
@@ -166,19 +179,24 @@ export const listInviteGuests = async (forceRefresh = false) => {
     return guestDirectoryPromise;
   }
 
-  guestDirectoryPromise = getDocs(collection(db, GUESTS_COLLECTION)).then(
-    (snapshot) =>
-      dedupeGuests(
-        snapshot.docs
+  guestDirectoryPromise = getDocs(collection(db, GUESTS_COLLECTION))
+    .then((snapshot) =>
+      dedupeGuests([
+        ...snapshot.docs
           .map((docSnapshot) =>
             mapGuestRecord(
               docSnapshot.id,
               docSnapshot.data() as FirestoreGuestRecord
             )
           )
-          .filter((guest): guest is UserProfile => Boolean(guest))
-      )
-  );
+          .filter((guest): guest is UserProfile => Boolean(guest)),
+        ...listLocalGuests(),
+      ])
+    )
+    .catch((error) => {
+      console.warn("Falling back to local invite directory list", error);
+      return listLocalGuests();
+    });
 
   try {
     return await guestDirectoryPromise;

@@ -130,12 +130,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       } catch (error) {
         console.error("Login failed", error);
+
+        try {
+          const fallbackUser = await fetchInviteByEntryId(entryId);
+
+          if (fallbackUser) {
+            setUser(fallbackUser);
+            saveStoredInviteSession(fallbackUser);
+            await firebaseSignOut(auth).catch(() => undefined);
+
+            return {
+              ok: true,
+              user: fallbackUser,
+            };
+          }
+        } catch (fallbackError) {
+          console.error("Local invite fallback failed", fallbackError);
+        }
+
         clearStoredInviteSession();
         setUser(null);
 
         return {
           ok: false,
-          reason: "network-error",
+          reason:
+            error instanceof Error &&
+            error.message.toLowerCase().includes("invalid")
+              ? "invalid-entry-id"
+              : "network-error",
           message:
             error instanceof Error &&
             error.message.toLowerCase().includes("invalid")
