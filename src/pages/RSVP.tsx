@@ -37,6 +37,7 @@ import { submitSuggestion } from '@/services/suggestionService'
 
 type Attendance = 'yes' | 'no'
 type Meal = 'veg' | 'nonveg'
+const stepLabels = ['Identity', 'Attendance', 'Meal']
 
 type FormData = {
   name: string
@@ -94,6 +95,8 @@ const RSVP = () => {
   })
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+  const [isSongSubmitting, setIsSongSubmitting] = useState<boolean>(false)
+  const [isSuggestionSubmitting, setIsSuggestionSubmitting] = useState<boolean>(false)
 
   useEffect(() => {
     const runCheck = async () => {
@@ -167,6 +170,8 @@ const RSVP = () => {
       return
     }
 
+    setIsSongSubmitting(true)
+
     try {
       await submitSongRequest(songData)
 
@@ -181,6 +186,8 @@ const RSVP = () => {
     } catch (err) {
       console.error(err)
       toast.error(getSubmitErrorMessage(err, 'Failed to submit song request'))
+    } finally {
+      setIsSongSubmitting(false)
     }
   }
 
@@ -191,6 +198,8 @@ const RSVP = () => {
       toast.error('Suggestion cannot be empty')
       return
     }
+
+    setIsSuggestionSubmitting(true)
 
     try {
       await submitSuggestion(suggestionData)
@@ -205,6 +214,8 @@ const RSVP = () => {
     } catch (err) {
       console.error(err)
       toast.error(getSubmitErrorMessage(err, 'Failed to submit suggestion'))
+    } finally {
+      setIsSuggestionSubmitting(false)
     }
   }
 
@@ -329,7 +340,7 @@ const RSVP = () => {
                 <Button
                   variant={activeTab === 'song' ? 'default' : 'outline'}
                   onClick={() => setActiveTab('song')}
-                  className='flex-1'
+                  className='flex-1 border-gold/30'
                 >
                   <Music className='w-4 h-4 mr-2' /> Song Request
                 </Button>
@@ -337,7 +348,7 @@ const RSVP = () => {
                 <Button
                   variant={activeTab === 'suggestion' ? 'default' : 'outline'}
                   onClick={() => setActiveTab('suggestion')}
-                  className='flex-1'
+                  className='flex-1 border-gold/30'
                 >
                   <MessageSquare className='w-4 h-4 mr-2' /> Suggestion
                 </Button>
@@ -361,8 +372,8 @@ const RSVP = () => {
                     }
                   />
 
-                  <Button type='submit' className='w-full'>
-                    Submit Song
+                  <Button type='submit' className='w-full' disabled={isSongSubmitting}>
+                    {isSongSubmitting ? 'Submitting...' : 'Submit Song'}
                   </Button>
                 </form>
               )}
@@ -380,8 +391,8 @@ const RSVP = () => {
                     }
                   />
 
-                  <Button type='submit' className='w-full'>
-                    Submit Suggestion
+                  <Button type='submit' className='w-full' disabled={isSuggestionSubmitting}>
+                    {isSuggestionSubmitting ? 'Submitting...' : 'Submit Suggestion'}
                   </Button>
                 </form>
               )}
@@ -412,15 +423,29 @@ const RSVP = () => {
           variant={getVariant()}
         />
 
-        <div className='max-w-lg mx-auto'>
-          <Card className='card-shimmer'>
+        <div className='max-w-lg mx-auto space-y-4'>
+          <div className='card-shimmer rounded-xl p-4 border border-gold/20'>
+            <div className='flex items-center justify-between text-xs text-gold/70 mb-2'>
+              <span>Step {currentStep} of 3</span>
+              <span>{stepLabels[currentStep - 1]}</span>
+            </div>
+            <div className='h-2 rounded-full bg-black/40 overflow-hidden border border-gold/20'>
+              <motion.div
+                className='h-full bg-gradient-to-r from-gold/70 to-copper'
+                initial={{ width: 0 }}
+                animate={{ width: `${(currentStep / 3) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          <Card className='card-shimmer border border-gold/20'>
             <CardContent className='p-6'>
               <form onSubmit={handleSubmit}>
                 <AnimatePresence mode='wait'>
                   {renderStepContent()}
                 </AnimatePresence>
 
-                <div className='flex gap-3 mt-8'>
+                <div className='flex gap-3 mt-8 flex-wrap'>
                   {currentStep > 1 && (
                     <Button
                       type='button'
@@ -432,11 +457,11 @@ const RSVP = () => {
                   )}
 
                   {currentStep < 3 ? (
-                    <Button type='button' onClick={handleNext}>
+                    <Button type='button' onClick={handleNext} className='min-w-28'>
                       Next <ArrowRight className='w-4 h-4 ml-2' />
                     </Button>
                   ) : (
-                    <Button type='submit' disabled={isSubmitting}>
+                    <Button type='submit' disabled={isSubmitting} className='min-w-36'>
                       <Send className='w-4 h-4 mr-2' />
                       {isSubmitting ? 'Submitting...' : 'Submit RSVP'}
                     </Button>
