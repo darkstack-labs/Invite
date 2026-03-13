@@ -43,7 +43,7 @@ const Index = () => {
   const normalizeName = (input: string) =>
     input
       .toLowerCase()
-      .replace(/[^a-z\s]/g, '')
+      .replace(/[^a-z]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -289,7 +289,7 @@ const Index = () => {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && checkInvitation()}
-                      placeholder="Enter first name (or full name if common)"
+                      placeholder="Enter first name or full name (e.g. Anshika-Suman)"
                       className="input-gold w-full px-5 py-3 rounded-xl text-center text-sm font-medium mb-4"
                     />
 
