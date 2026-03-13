@@ -99,8 +99,29 @@ const Index = () => {
   const isGuest = Boolean(resolvedEntryId);
 
   const checkInvitation = () => {
-    const formatted = titleCaseName(name);
-    const { entryId, ambiguous } = resolveGuest(formatted);
+    const raw = name.trim();
+    const candidates = Array.from(
+      new Set([
+        raw,
+        raw.replace(/_/g, ' '),
+        titleCaseName(raw),
+        titleCaseName(raw.replace(/_/g, ' '))
+      ])
+    );
+
+    let entryId = '';
+    let ambiguous = false;
+
+    for (const candidate of candidates) {
+      const result = resolveGuest(candidate);
+      if (result.entryId) {
+        entryId = result.entryId;
+        break;
+      }
+      if (result.ambiguous) ambiguous = true;
+    }
+
+    const formatted = titleCaseName(raw.replace(/_/g, ' '));
     setName(formatted);
     if (entryId) {
       setMessage({ text: "You're on the list. Welcome to the madness!", type: 'success' });
