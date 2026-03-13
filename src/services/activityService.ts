@@ -1,5 +1,6 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/firebase";
+import { ensureAnonymousAuth } from "@/firebase";
 
 type ActivityType =
   | "login_success"
@@ -40,6 +41,8 @@ export const getDeviceId = () => {
 
 export const logActivity = async (payload: ActivityPayload) => {
   try {
+    await ensureAnonymousAuth();
+
     await addDoc(collection(db, "activityLogs"), {
       type: payload.type,
       entryId: payload.entryId ?? "",
