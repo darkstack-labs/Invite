@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
+import { guests } from "@/contexts/AuthContext";
 
 interface RSVP {
   id?: string;
@@ -103,8 +104,10 @@ export default function AdminDashboard(): JSX.Element {
         events: 0
       };
 
-      if (log.entryId) found.entryIds.add(log.entryId);
-      if (log.name) found.names.add(log.name);
+      if (log.entryId && entryNameMap[log.entryId]) {
+        found.entryIds.add(log.entryId);
+        found.names.add(entryNameMap[log.entryId]);
+      }
       found.events += 1;
       deviceMap.set(deviceId, found);
     });
@@ -118,7 +121,7 @@ export default function AdminDashboard(): JSX.Element {
       }))
       .filter((d) => d.accounts.length > 1)
       .sort((a, b) => b.accounts.length - a.accounts.length || b.events - a.events);
-  }, [activityLogs]);
+  }, [activityLogs, entryNameMap]);
 
   const allDevices = useMemo(() => {
     const deviceMap = new Map<string, { entryIds: Set<string>; names: Set<string>; events: number }>();
@@ -131,8 +134,10 @@ export default function AdminDashboard(): JSX.Element {
         events: 0
       };
 
-      if (log.entryId) found.entryIds.add(log.entryId);
-      if (log.name) found.names.add(log.name);
+      if (log.entryId && entryNameMap[log.entryId]) {
+        found.entryIds.add(log.entryId);
+        found.names.add(entryNameMap[log.entryId]);
+      }
       found.events += 1;
       deviceMap.set(deviceId, found);
     });
@@ -145,7 +150,7 @@ export default function AdminDashboard(): JSX.Element {
         events: data.events
       }))
       .sort((a, b) => b.events - a.events);
-  }, [activityLogs]);
+  }, [activityLogs, entryNameMap]);
 
   const suspiciousEvents = useMemo(() => {
     const suspiciousSet = new Set(suspiciousDevices.map((d) => d.deviceId));
@@ -712,3 +717,7 @@ const formatLogTime = (log: ActivityLog) => {
 
   return "-";
 };
+  const entryNameMap = useMemo(() => {
+    const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
+    return Object.fromEntries(pairs) as Record<string, string>;
+  }, []);
