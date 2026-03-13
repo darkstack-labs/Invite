@@ -64,42 +64,52 @@ const Index = () => {
   }, []);
 
   const firstNameMap = useMemo(() => {
-    const map = new Map<string, string[]>();
+    const map = new Map<string, { entryId: string; fullName: string }[]>();
     Object.entries(guests).forEach(([guestName, entryId]) => {
       const first = normalizeName(guestName).split(' ')[0];
       if (!first) return;
       const list = map.get(first) ?? [];
-      list.push(entryId);
+      list.push({ entryId, fullName: guestName });
       map.set(first, list);
     });
     return map;
   }, []);
 
-  const resolveEntryId = (rawName: string) => {
+  const resolveGuest = (rawName: string) => {
     const normalized = normalizeName(rawName);
-    if (!normalized) return '';
+    if (!normalized) return { entryId: '', ambiguous: false };
 
     const exact = normalizedGuestMap.get(normalized);
-    if (exact) return exact;
+    if (exact) return { entryId: exact, ambiguous: false };
 
     // If user enters only first name, allow only unique matches.
     const firstNameCandidates = firstNameMap.get(normalized);
     if (firstNameCandidates?.length === 1) {
-      return firstNameCandidates[0];
+      return { entryId: firstNameCandidates[0].entryId, ambiguous: false };
     }
 
-    return '';
+    if (firstNameCandidates && firstNameCandidates.length > 1) {
+      return { entryId: '', ambiguous: true };
+    }
+
+    return { entryId: '', ambiguous: false };
   };
 
-  const resolvedEntryId = resolveEntryId(name);
+  const { entryId: resolvedEntryId } = resolveGuest(name);
   const isGuest = Boolean(resolvedEntryId);
 
   const checkInvitation = () => {
     const formatted = titleCaseName(name);
-    const entryId = resolveEntryId(formatted);
+    const { entryId, ambiguous } = resolveGuest(formatted);
     setName(formatted);
     if (entryId) {
       setMessage({ text: "You're on the list. Welcome to the madness!", type: 'success' });
+      setShowEntryId(false);
+    } else if (ambiguous) {
+      setMessage({
+        text: "Multiple guests share this first name. Please enter your full name.",
+        type: 'error'
+      });
       setShowEntryId(false);
     } else {
       setMessage({ text: "Oops — you didn't make the cut.", type: 'error' });
@@ -279,7 +289,7 @@ const Index = () => {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && checkInvitation()}
-                      placeholder="Enter your first name"
+                      placeholder="Enter first name (or full name if common)"
                       className="input-gold w-full px-5 py-3 rounded-xl text-center text-sm font-medium mb-4"
                     />
 
