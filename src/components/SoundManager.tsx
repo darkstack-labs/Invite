@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 
 // Royalty-free background music
-const AMBIENT_MUSIC_URL = "https://cdn.pixabay.com/audio/2024/11/29/audio_7a02c19c95.mp3";
+const AMBIENT_MUSIC_URL = "";
 
 interface SoundContextType {
   musicPlaying: boolean;
@@ -24,6 +24,11 @@ export const SoundProvider = ({ children }: { children: ReactNode }) => {
 
   // Initialize audio element
   useEffect(() => {
+    if (!AMBIENT_MUSIC_URL) {
+      setMusicAvailable(false);
+      return;
+    }
+
     const music = new Audio(AMBIENT_MUSIC_URL);
     music.loop = true;
     music.volume = 0.25;

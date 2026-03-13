@@ -1,12 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import ParticleBackground from '@/components/ParticleBackground';
 import TypewriterText from '@/components/TypewriterText';
 import { Crown, Sparkles, Star, KeyRound } from 'lucide-react';
 import { guests } from '@/contexts/AuthContext';
-
-const BUBBLES_VIDEO = "https://cdn.pixabay.com/video/2020/05/25/39831-424930989_large.mp4";
 
 // Floating ornamental line
 const OrnamentalDivider = () => (
@@ -33,7 +31,6 @@ const Index = () => {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showEntryId, setShowEntryId] = useState(false);
   const [showTypewriter, setShowTypewriter] = useState(true);
-  const [videoLoaded, setVideoLoaded] = useState(false);
   const [phase, setPhase] = useState(0); // 0=nothing, 1=crown, 2=title, 3=card
 
   useEffect(() => {
@@ -62,18 +59,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Video BG */}
-      <div className="fixed inset-0 z-0">
-        <video
-          autoPlay muted loop playsInline
-          onLoadedData={() => setVideoLoaded(true)}
-          className={`absolute w-full h-full object-cover transition-opacity duration-1000 ${videoLoaded ? 'opacity-15' : 'opacity-0'}`}
-          style={{ filter: 'sepia(100%) hue-rotate(10deg) saturate(80%)' }}
-        >
-          <source src={BUBBLES_VIDEO} type="video/mp4" />
-        </video>
-        <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/80 to-black/95" />
-      </div>
+      <div className="fixed inset-0 z-0 bg-gradient-to-b from-black/90 via-black/80 to-black/95" />
 
       <div className="fixed inset-0 bg-gradient-to-br from-black via-[#030303] to-[#0a0700] -z-10" />
       <ParticleBackground count={40} />
