@@ -63,24 +63,32 @@ const Index = () => {
     return map;
   }, []);
 
-  const aliasEntryMap = useMemo(
-    () =>
-      new Map<string, string>([
-        ['raj nandini', '2346'],
-        ['anshika sumar', '2236']
-      ]),
-    []
-  );
+  const firstNameMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    Object.entries(guests).forEach(([guestName, entryId]) => {
+      const first = normalizeName(guestName).split(' ')[0];
+      if (!first) return;
+      const list = map.get(first) ?? [];
+      list.push(entryId);
+      map.set(first, list);
+    });
+    return map;
+  }, []);
 
   const resolveEntryId = (rawName: string) => {
     const normalized = normalizeName(rawName);
     if (!normalized) return '';
 
-    return (
-      aliasEntryMap.get(normalized) ??
-      normalizedGuestMap.get(normalized) ??
-      ''
-    );
+    const exact = normalizedGuestMap.get(normalized);
+    if (exact) return exact;
+
+    // If user enters only first name, allow only unique matches.
+    const firstNameCandidates = firstNameMap.get(normalized);
+    if (firstNameCandidates?.length === 1) {
+      return firstNameCandidates[0];
+    }
+
+    return '';
   };
 
   const resolvedEntryId = resolveEntryId(name);
