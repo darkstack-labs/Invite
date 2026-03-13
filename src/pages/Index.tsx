@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import ParticleBackground from '@/components/ParticleBackground';
 import TypewriterText from '@/components/TypewriterText';
 import { Crown, Sparkles, Star, KeyRound } from 'lucide-react';
@@ -40,15 +40,57 @@ const Index = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
 
-  const formatName = (input: string) =>
-    input.trim().charAt(0).toUpperCase() + input.trim().slice(1).toLowerCase();
+  const normalizeName = (input: string) =>
+    input
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-  const isGuest = formatName(name) in guests;
+  const titleCaseName = (input: string) =>
+    input
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+
+  const normalizedGuestMap = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.entries(guests).forEach(([guestName, entryId]) => {
+      map.set(normalizeName(guestName), entryId);
+    });
+    return map;
+  }, []);
+
+  const aliasEntryMap = useMemo(
+    () =>
+      new Map<string, string>([
+        ['raj nandini', '2346'],
+        ['anshika sumar', '2236']
+      ]),
+    []
+  );
+
+  const resolveEntryId = (rawName: string) => {
+    const normalized = normalizeName(rawName);
+    if (!normalized) return '';
+
+    return (
+      aliasEntryMap.get(normalized) ??
+      normalizedGuestMap.get(normalized) ??
+      ''
+    );
+  };
+
+  const resolvedEntryId = resolveEntryId(name);
+  const isGuest = Boolean(resolvedEntryId);
 
   const checkInvitation = () => {
-    const formatted = formatName(name);
+    const formatted = titleCaseName(name);
+    const entryId = resolveEntryId(formatted);
     setName(formatted);
-    if (guests[formatted]) {
+    if (entryId) {
       setMessage({ text: "You're on the list. Welcome to the madness!", type: 'success' });
       setShowEntryId(false);
     } else {
@@ -312,7 +354,7 @@ const Index = () => {
                           >
                             <p className="text-[10px] text-champagne/40 mb-1 uppercase tracking-[0.2em]">Your Entry ID</p>
                             <p className="font-bold text-gold text-xl tracking-widest font-cinzel">
-                              {guests[formatName(name)]}
+                              {resolvedEntryId}
                             </p>
                           </motion.div>
                         </motion.div>
