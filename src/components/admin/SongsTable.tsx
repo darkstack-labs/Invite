@@ -1,4 +1,4 @@
-export default function SongsTable({ songs }: any) {
+export default function SongsTable({ songs, onDelete }: any) {
 
   return (
     <div style={wrap}>
@@ -18,6 +18,7 @@ export default function SongsTable({ songs }: any) {
             <th style={th}>Name</th>
             <th style={th}>Song</th>
             <th style={th}>Artist</th>
+            <th style={th}>Actions</th>
           </tr>
         </thead>
 
@@ -25,7 +26,7 @@ export default function SongsTable({ songs }: any) {
 
           {songs.length === 0 && (
             <tr>
-              <td style={emptyTd} colSpan={3}>No song requests found.</td>
+              <td style={emptyTd} colSpan={4}>No song requests found.</td>
             </tr>
           )}
 
@@ -34,6 +35,11 @@ export default function SongsTable({ songs }: any) {
               <td style={td}>{s.name}</td>
               <td style={td}>{s.songName}</td>
               <td style={td}>{s.artist}</td>
+              <td style={td}>
+                <button style={deleteBtn} onClick={() => onDelete?.(s.id)}>
+                  Delete
+                </button>
+              </td>
             </tr>
           ))}
 
@@ -74,4 +80,15 @@ const emptyTd = {
   padding: "20px 14px",
   color: "#aaa",
   textAlign: "center" as const
+};
+
+const deleteBtn = {
+  border: "none",
+  borderRadius: 7,
+  padding: "6px 10px",
+  cursor: "pointer",
+  background: "#ff4d4f",
+  color: "#fff",
+  fontWeight: 700,
+  fontSize: 12
 };

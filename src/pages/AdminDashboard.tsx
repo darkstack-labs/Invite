@@ -18,6 +18,8 @@ import {
   unblockEntry
 } from "@/services/blockService";
 import { toast } from "sonner";
+import { deleteDoc, doc } from "firebase/firestore";
+import { db } from "@/firebase";
 
 interface RSVP {
   id?: string;
@@ -118,6 +120,33 @@ export default function AdminDashboard(): JSX.Element {
       .sort((a, b) => b.accounts.length - a.accounts.length || b.events - a.events);
   }, [activityLogs]);
 
+  const allDevices = useMemo(() => {
+    const deviceMap = new Map<string, { entryIds: Set<string>; names: Set<string>; events: number }>();
+
+    activityLogs.forEach((log: ActivityLog) => {
+      const deviceId = log.deviceId ?? "unknown-device";
+      const found = deviceMap.get(deviceId) ?? {
+        entryIds: new Set<string>(),
+        names: new Set<string>(),
+        events: 0
+      };
+
+      if (log.entryId) found.entryIds.add(log.entryId);
+      if (log.name) found.names.add(log.name);
+      found.events += 1;
+      deviceMap.set(deviceId, found);
+    });
+
+    return Array.from(deviceMap.entries())
+      .map(([deviceId, data]) => ({
+        deviceId,
+        accounts: Array.from(data.entryIds),
+        names: Array.from(data.names),
+        events: data.events
+      }))
+      .sort((a, b) => b.events - a.events);
+  }, [activityLogs]);
+
   const suspiciousEvents = useMemo(() => {
     const suspiciousSet = new Set(suspiciousDevices.map((d) => d.deviceId));
     return activityLogs
@@ -162,6 +191,26 @@ export default function AdminDashboard(): JSX.Element {
     } catch (error) {
       console.error(error);
       toast.error("Failed to update account block status");
+    }
+  };
+
+  const handleDeleteSong = async (songId: string) => {
+    try {
+      await deleteDoc(doc(db, "songs", songId));
+      toast.success("Song request deleted");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete song request");
+    }
+  };
+
+  const handleDeleteSuggestion = async (suggestionId: string) => {
+    try {
+      await deleteDoc(doc(db, "suggestions", suggestionId));
+      toast.success("Suggestion deleted");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete suggestion");
     }
   };
 
@@ -398,8 +447,8 @@ export default function AdminDashboard(): JSX.Element {
         </>
       )}
 
-      {activeSection === "songs" && <SongsTable songs={songs} />}
-      {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} />}
+      {activeSection === "songs" && <SongsTable songs={songs} onDelete={handleDeleteSong} />}
+      {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} />}
       {activeSection === "activity" && (
         <div style={panel}>
           <h3 style={panelTitle}>Recent Activity Logs</h3>
@@ -414,12 +463,13 @@ export default function AdminDashboard(): JSX.Element {
                   <th style={th}>Entry ID</th>
                   <th style={th}>Device</th>
                   <th style={th}>Details</th>
+                  <th style={th}>Controls</th>
                 </tr>
               </thead>
               <tbody>
                 {activityLogs.length === 0 && (
                   <tr>
-                    <td style={emptyTd} colSpan={6}>No activity logs yet.</td>
+                    <td style={emptyTd} colSpan={7}>No activity logs yet.</td>
                   </tr>
                 )}
 
@@ -431,6 +481,26 @@ export default function AdminDashboard(): JSX.Element {
                     <td style={td}>{log.entryId ?? "-"}</td>
                     <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
                     <td style={td}>{log.details || "-"}</td>
+                    <td style={td}>
+                      <div style={controls}>
+                        {log.entryId && (
+                          <button
+                            style={blockBtn(blockedEntryIds.has(log.entryId))}
+                            onClick={() => handleToggleEntryBlock(log.entryId as string, log.name)}
+                          >
+                            {blockedEntryIds.has(log.entryId) ? "Unblock Account" : "Block Account"}
+                          </button>
+                        )}
+                        {log.deviceId && (
+                          <button
+                            style={blockBtn(blockedDeviceIds.has(log.deviceId))}
+                            onClick={() => handleToggleDeviceBlock(log.deviceId as string)}
+                          >
+                            {blockedDeviceIds.has(log.deviceId) ? "Unblock Device" : "Block Device"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -441,10 +511,10 @@ export default function AdminDashboard(): JSX.Element {
 
       {activeSection === "device_watch" && (
         <div style={panel}>
-          <h3 style={panelTitle}>Devices Used For Multiple Accounts</h3>
+          <h3 style={panelTitle}>All Devices (Manual Block Controls)</h3>
 
-          {suspiciousDevices.length === 0 ? (
-            <p style={mutedText}>No suspicious devices found yet.</p>
+          {allDevices.length === 0 ? (
+            <p style={mutedText}>No device logs found yet.</p>
           ) : (
             <div style={activityTableWrap}>
               <table style={activityTable}>
@@ -458,7 +528,7 @@ export default function AdminDashboard(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {suspiciousDevices.map((device) => (
+                  {allDevices.map((device) => (
                     <tr key={device.deviceId} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                       <td style={td}>{shortDevice(device.deviceId)}</td>
                       <td style={td}>

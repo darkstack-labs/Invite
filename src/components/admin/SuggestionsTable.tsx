@@ -1,4 +1,4 @@
-export default function SuggestionsTable({ suggestions }: any) {
+export default function SuggestionsTable({ suggestions, onDelete }: any) {
 
   return (
     <div style={wrap}>
@@ -17,6 +17,7 @@ export default function SuggestionsTable({ suggestions }: any) {
           <tr style={{background:"#1c1c1c"}}>
             <th style={th}>Name</th>
             <th style={th}>Suggestion</th>
+            <th style={th}>Actions</th>
           </tr>
         </thead>
 
@@ -24,7 +25,7 @@ export default function SuggestionsTable({ suggestions }: any) {
 
           {suggestions.length === 0 && (
             <tr>
-              <td style={emptyTd} colSpan={2}>No suggestions found.</td>
+              <td style={emptyTd} colSpan={3}>No suggestions found.</td>
             </tr>
           )}
 
@@ -32,6 +33,11 @@ export default function SuggestionsTable({ suggestions }: any) {
             <tr key={s.id} style={{borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
               <td style={td}>{s.name}</td>
               <td style={td}>{s.suggestion}</td>
+              <td style={td}>
+                <button style={deleteBtn} onClick={() => onDelete?.(s.id)}>
+                  Delete
+                </button>
+              </td>
             </tr>
           ))}
 
@@ -72,4 +78,15 @@ const emptyTd = {
   padding: "20px 14px",
   color: "#aaa",
   textAlign: "center" as const
+};
+
+const deleteBtn = {
+  border: "none",
+  borderRadius: 7,
+  padding: "6px 10px",
+  cursor: "pointer",
+  background: "#ff4d4f",
+  color: "#fff",
+  fontWeight: 700,
+  fontSize: 12
 };
