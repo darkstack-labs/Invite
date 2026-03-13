@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type CSSProperties } from "react";
 import AdminLayout from "../components/admin/AdminLayout";
 import AdminStats from "../components/admin/AdminStats";
 import RSVPTable from "../components/admin/RSPVTable";
@@ -10,12 +10,15 @@ import useSongs from "../hooks/useSongs";
 import useSuggestions from "../hooks/useSuggestions";
 
 interface RSVP {
+  id?: string;
   name?: string;
+  entryId?: string;
   attendance?: "yes" | "no";
   mealPreference?: "veg" | "nonveg";
 }
 
 const ADMIN_PASSWORD = "randiokimehfil";
+type Section = "overview" | "rsvps" | "songs" | "suggestions";
 
 export default function AdminDashboard(): JSX.Element {
 
@@ -34,6 +37,7 @@ export default function AdminDashboard(): JSX.Element {
   );
 
   const [password, setPassword] = useState<string>("");
+  const [activeSection, setActiveSection] = useState<Section>("overview");
 
   /* ---------------- DERIVED DATA ---------------- */
 
@@ -51,6 +55,10 @@ export default function AdminDashboard(): JSX.Element {
       nonVeg: rsvps.filter((r: RSVP) => r.mealPreference === "nonveg").length,
     };
   }, [rsvps]);
+
+  const recentRSVPs = useMemo(() => filteredGuests.slice(0, 6), [filteredGuests]);
+  const recentSongs = useMemo(() => songs.slice(0, 6), [songs]);
+  const recentSuggestions = useMemo(() => suggestions.slice(0, 4), [suggestions]);
 
   /* ---------------- AUTH ---------------- */
 
@@ -131,64 +139,163 @@ export default function AdminDashboard(): JSX.Element {
   /* ---------------- DASHBOARD ---------------- */
 
   return (
-    <AdminLayout>
+    <AdminLayout
+      navItems={[
+        { key: "overview", label: "Overview" },
+        { key: "rsvps", label: "RSVP Manager" },
+        { key: "songs", label: "Song Requests" },
+        { key: "suggestions", label: "Suggestions" }
+      ]}
+      activeSection={activeSection}
+      onSectionChange={setActiveSection}
+      title={
+        activeSection === "overview"
+          ? "Admin Dashboard"
+          : activeSection === "rsvps"
+            ? "RSVP Manager"
+            : activeSection === "songs"
+              ? "Song Requests"
+              : "Guest Suggestions"
+      }
+      subtitle="Live data updates from Firestore"
+      onLogout={handleLogout}
+    >
+      {activeSection === "overview" && (
+        <>
+          <AdminStats stats={stats} />
 
-      {/* LOGOUT */}
+          <div style={overviewGrid}>
+            <section style={panel}>
+              <h3 style={panelTitle}>Latest RSVP</h3>
+              {recentRSVPs.length === 0 ? (
+                <p style={mutedText}>No RSVP yet.</p>
+              ) : (
+                recentRSVPs.map((r: RSVP) => (
+                  <div key={r.id} style={row}>
+                    <span>{r.name ?? "Unknown"}</span>
+                    <span style={badge(r.attendance === "yes" ? "#2ecc71" : "#ff6666")}>
+                      {r.attendance === "yes" ? "Attending" : "Not Attending"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </section>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: 20,
-        }}
-      >
-        <button
-          onClick={handleLogout}
-          style={{
-            padding: "8px 14px",
-            borderRadius: 6,
-            border: "none",
-            background: "#ff4d4f",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          Logout
-        </button>
-      </div>
+            <section style={panel}>
+              <h3 style={panelTitle}>Recent Songs</h3>
+              {recentSongs.length === 0 ? (
+                <p style={mutedText}>No song requests yet.</p>
+              ) : (
+                recentSongs.map((s: any) => (
+                  <div key={s.id} style={row}>
+                    <span>{s.songName ?? "-"}</span>
+                    <span style={mutedTextSmall}>{s.name ?? "Unknown"}</span>
+                  </div>
+                ))
+              )}
+            </section>
 
-      {/* STATS */}
+            <section style={panel}>
+              <h3 style={panelTitle}>Recent Suggestions</h3>
+              {recentSuggestions.length === 0 ? (
+                <p style={mutedText}>No suggestions yet.</p>
+              ) : (
+                recentSuggestions.map((s: any) => (
+                  <div key={s.id} style={row}>
+                    <span style={mutedTextSmall}>{s.name ?? "Unknown"}</span>
+                    <span style={truncateText}>{s.suggestion ?? "-"}</span>
+                  </div>
+                ))
+              )}
+            </section>
+          </div>
+        </>
+      )}
 
-      <AdminStats stats={stats} />
+      {activeSection === "rsvps" && (
+        <>
+          <div style={searchWrap}>
+            <input
+              placeholder="Search guest by name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={searchInput}
+            />
+          </div>
+          <RSVPTable guests={filteredGuests} />
+        </>
+      )}
 
-      {/* SEARCH */}
-
-      <div style={{ marginBottom: 30 }}>
-        <input
-          placeholder="Search guest..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            padding: 10,
-            width: 300,
-            borderRadius: 6,
-            border: "1px solid #ccc",
-          }}
-        />
-      </div>
-
-      {/* RSVP TABLE */}
-
-      <RSVPTable guests={filteredGuests} />
-
-      {/* SONG REQUESTS */}
-
-      <SongsTable songs={songs} />
-
-      {/* SUGGESTIONS */}
-
-      <SuggestionsTable suggestions={suggestions} />
-
+      {activeSection === "songs" && <SongsTable songs={songs} />}
+      {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} />}
     </AdminLayout>
   );
 }
+
+const overviewGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+  gap: 16
+};
+
+const panel: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.03)",
+  padding: 16
+};
+
+const panelTitle: CSSProperties = {
+  marginTop: 0,
+  color: "#ffd57a"
+};
+
+const row: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "8px 0",
+  borderBottom: "1px solid rgba(255,255,255,0.08)"
+};
+
+const mutedText: CSSProperties = {
+  color: "#9fa3a9"
+};
+
+const mutedTextSmall: CSSProperties = {
+  color: "#b8bcc2",
+  fontSize: 12
+};
+
+const truncateText: CSSProperties = {
+  color: "#e4e6eb",
+  maxWidth: 180,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis"
+};
+
+const searchWrap: CSSProperties = {
+  marginBottom: 20
+};
+
+const searchInput: CSSProperties = {
+  width: "100%",
+  maxWidth: 360,
+  padding: "11px 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(255,255,255,0.04)",
+  color: "#fff",
+  outline: "none"
+};
+
+const badge = (color: string): CSSProperties => ({
+  border: `1px solid ${color}`,
+  color,
+  borderRadius: 999,
+  padding: "3px 10px",
+  fontSize: 11,
+  fontWeight: 700
+});

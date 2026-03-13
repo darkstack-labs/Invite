@@ -1,83 +1,243 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState, type CSSProperties } from "react";
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+type Section = "overview" | "rsvps" | "songs" | "suggestions";
+
+type NavItem = {
+  key: Section;
+  label: string;
+};
+
+interface AdminLayoutProps {
+  children: ReactNode;
+  navItems: NavItem[];
+  activeSection: Section;
+  onSectionChange: (section: Section) => void;
+  title: string;
+  subtitle: string;
+  onLogout: () => void;
+}
+
+export default function AdminLayout({
+  children,
+  navItems,
+  activeSection,
+  onSectionChange,
+  title,
+  subtitle,
+  onLogout
+}: AdminLayoutProps) {
+  const [openSidebar, setOpenSidebar] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
+
+  useEffect(() => {
+    const onResize = () => {
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
+      if (desktop) setOpenSidebar(false);
+    };
+
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const selectSection = (section: Section) => {
+    onSectionChange(section);
+    setOpenSidebar(false);
+  };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "#0f0f0f",
-        color: "#eaeaea",
-        fontFamily: "system-ui, sans-serif"
-      }}
-    >
+    <div style={shell}>
+      {!isDesktop && openSidebar && (
+        <button
+          onClick={() => setOpenSidebar(false)}
+          style={overlay}
+          aria-label="Close sidebar"
+        />
+      )}
 
-      {/* Sidebar */}
       <aside
         style={{
-          width: 260,
-          background: "#111",
-          borderRight: "1px solid #222",
-          padding: 30
+          ...sidebar,
+          ...(isDesktop ? sidebarDesktop : {}),
+          ...(openSidebar ? sidebarOpen : {})
         }}
       >
+        <h2 style={brand}>Admin Panel</h2>
 
-        <h2
-          style={{
-            marginBottom: 40,
-            color: "#f5b000",
-            letterSpacing: 1
-          }}
-        >
-          Admin Panel
-        </h2>
-
-        <nav
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 20
-          }}
-        >
-
-          <SidebarItem text="Dashboard" />
-          <SidebarItem text="RSVP Manager" />
-          <SidebarItem text="Song Requests" />
-          <SidebarItem text="Suggestions" />
-
+        <nav style={nav}>
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => selectSection(item.key)}
+              style={{
+                ...navItem,
+                ...(activeSection === item.key ? navItemActive : {})
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
-
       </aside>
 
-      {/* Main Content */}
-      <main
-        style={{
-          flex: 1,
-          padding: 40,
-          overflowY: "auto"
-        }}
-      >
+      <main style={{ ...content, ...(isDesktop ? contentDesktop : {}) }}>
+        <header style={topBar}>
+          <div>
+            <h1 style={pageTitle}>{title}</h1>
+            <p style={pageSubtitle}>{subtitle}</p>
+          </div>
+
+          <div style={topActions}>
+            <button
+              onClick={() => setOpenSidebar(true)}
+              style={{ ...menuButton, ...(isDesktop ? menuButtonHidden : {}) }}
+              aria-label="Open sidebar"
+            >
+              Menu
+            </button>
+
+            <button onClick={onLogout} style={logoutBtn}>
+              Logout
+            </button>
+          </div>
+        </header>
 
         {children}
-
       </main>
-
     </div>
   );
 }
 
-function SidebarItem({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        color: "#ccc",
-        fontSize: 15,
-        cursor: "pointer",
-        padding: "8px 0"
-      }}
-    >
-      {text}
-    </div>
-  );
-}
+const shell: CSSProperties = {
+  display: "flex",
+  minHeight: "100vh",
+  background: "radial-gradient(circle at top left, #1c1c1c 0%, #0e0e0e 45%, #090909 100%)",
+  color: "#f5f5f5",
+  fontFamily: "system-ui, sans-serif",
+  position: "relative"
+};
+
+const overlay: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  border: "none",
+  background: "rgba(0,0,0,0.55)",
+  zIndex: 30
+};
+
+const sidebar: CSSProperties = {
+  width: 260,
+  padding: 24,
+  borderRight: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(10,10,10,0.95)",
+  position: "fixed",
+  top: 0,
+  left: 0,
+  bottom: 0,
+  transform: "translateX(-100%)",
+  transition: "transform 220ms ease",
+  zIndex: 40
+};
+
+const sidebarOpen: CSSProperties = {
+  transform: "translateX(0)"
+};
+
+const sidebarDesktop: CSSProperties = {
+  transform: "translateX(0)",
+  zIndex: 10
+};
+
+const brand: CSSProperties = {
+  marginBottom: 24,
+  color: "#f5b000",
+  letterSpacing: 1,
+  fontSize: 22
+};
+
+const nav: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10
+};
+
+const navItem: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "transparent",
+  color: "#ddd",
+  borderRadius: 10,
+  textAlign: "left",
+  padding: "11px 14px",
+  cursor: "pointer",
+  fontWeight: 600
+};
+
+const navItemActive: CSSProperties = {
+  background: "linear-gradient(90deg, rgba(245,176,0,0.22), rgba(245,176,0,0.06))",
+  borderColor: "rgba(245,176,0,0.55)",
+  color: "#ffd57a"
+};
+
+const content: CSSProperties = {
+  width: "100%",
+  padding: 20
+};
+
+const contentDesktop: CSSProperties = {
+  marginLeft: 260
+};
+
+const topBar: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+  marginBottom: 18,
+  padding: "14px 16px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.03)"
+};
+
+const topActions: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10
+};
+
+const menuButton: CSSProperties = {
+  padding: "9px 14px",
+  borderRadius: 8,
+  border: "1px solid rgba(255,255,255,0.2)",
+  background: "transparent",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: 600
+};
+
+const menuButtonHidden: CSSProperties = {
+  display: "none"
+};
+
+const logoutBtn: CSSProperties = {
+  padding: "9px 14px",
+  borderRadius: 8,
+  border: "none",
+  background: "#ff4d4f",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: 700
+};
+
+const pageTitle: CSSProperties = {
+  margin: 0,
+  fontSize: 22
+};
+
+const pageSubtitle: CSSProperties = {
+  margin: "4px 0 0",
+  color: "#bbb",
+  fontSize: 13
+};

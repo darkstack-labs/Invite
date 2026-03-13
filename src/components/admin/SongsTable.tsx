@@ -1,18 +1,16 @@
 export default function SongsTable({ songs }: any) {
 
   return (
-
-    <div style={{ marginTop: 40 }}>
-
-      <h2 style={{ marginBottom: 15 }}>Song Requests</h2>
+    <div style={wrap}>
+      <h2 style={title}>Song Requests</h2>
 
       <table style={{
         width: "100%",
         borderCollapse: "collapse",
-        background: "#161616",
+        background: "rgba(255,255,255,0.02)",
         borderRadius: 12,
         overflow: "hidden",
-        border: "1px solid #222"
+        border: "1px solid rgba(255,255,255,0.12)"
       }}>
 
         <thead>
@@ -25,8 +23,14 @@ export default function SongsTable({ songs }: any) {
 
         <tbody>
 
+          {songs.length === 0 && (
+            <tr>
+              <td style={emptyTd} colSpan={3}>No song requests found.</td>
+            </tr>
+          )}
+
           {songs.map((s:any)=>(
-            <tr key={s.id} style={{borderBottom:"1px solid #222"}}>
+            <tr key={s.id} style={{borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
               <td style={td}>{s.name}</td>
               <td style={td}>{s.songName}</td>
               <td style={td}>{s.artist}</td>
@@ -43,6 +47,19 @@ export default function SongsTable({ songs }: any) {
 
 }
 
+const wrap = {
+  marginTop: 12,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.03)",
+  borderRadius: 14,
+  padding: 16
+};
+
+const title = {
+  marginTop: 0,
+  marginBottom: 15
+};
+
 const th = {
   padding: "14px",
   textAlign: "left" as const,
@@ -51,4 +68,10 @@ const th = {
 
 const td = {
   padding: "14px"
+};
+
+const emptyTd = {
+  padding: "20px 14px",
+  color: "#aaa",
+  textAlign: "center" as const
 };

@@ -11,27 +11,27 @@ export default function AdminStats({ stats }: any) {
       }}
     >
 
-      <StatCard title="Total Guests" value={stats.total} />
-      <StatCard title="Attending" value={stats.attending} />
-      <StatCard title="Veg Meals" value={stats.veg} />
-      <StatCard title="Non-Veg Meals" value={stats.nonVeg} />
+      <StatCard title="Total Guests" value={stats.total} accent="#7aa2ff" />
+      <StatCard title="Attending" value={stats.attending} accent="#2ecc71" />
+      <StatCard title="Veg Meals" value={stats.veg} accent="#9ccc65" />
+      <StatCard title="Non-Veg Meals" value={stats.nonVeg} accent="#ffb74d" />
 
     </div>
 
   );
 }
 
-function StatCard({ title, value }: any) {
+function StatCard({ title, value, accent }: any) {
 
   return (
 
     <div
       style={{
-        background: "#161616",
+        background: "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
         borderRadius: 12,
         padding: 25,
-        border: "1px solid #222",
-        boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
+        border: "1px solid rgba(255,255,255,0.12)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.25)"
       }}
     >
 
@@ -48,7 +48,7 @@ function StatCard({ title, value }: any) {
       <h2
         style={{
           fontSize: 30,
-          color: "#f5b000",
+          color: accent ?? "#f5b000",
           margin: 0
         }}
       >
