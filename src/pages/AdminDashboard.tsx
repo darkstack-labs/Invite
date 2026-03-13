@@ -19,7 +19,13 @@ interface RSVP {
 }
 
 const ADMIN_PASSWORD = "randiokimehfil";
-type Section = "overview" | "rsvps" | "songs" | "suggestions" | "activity";
+type Section =
+  | "overview"
+  | "rsvps"
+  | "songs"
+  | "suggestions"
+  | "activity"
+  | "device_watch";
 
 interface ActivityLog {
   id?: string;
@@ -100,6 +106,13 @@ export default function AdminDashboard(): JSX.Element {
       .filter((d) => d.accounts.length > 1)
       .sort((a, b) => b.accounts.length - a.accounts.length || b.events - a.events);
   }, [activityLogs]);
+
+  const suspiciousEvents = useMemo(() => {
+    const suspiciousSet = new Set(suspiciousDevices.map((d) => d.deviceId));
+    return activityLogs
+      .filter((log: ActivityLog) => suspiciousSet.has(log.deviceId ?? "unknown-device"))
+      .slice(0, 12);
+  }, [activityLogs, suspiciousDevices]);
 
   /* ---------------- AUTH ---------------- */
 
@@ -186,7 +199,8 @@ export default function AdminDashboard(): JSX.Element {
         { key: "rsvps", label: "RSVP Manager" },
         { key: "songs", label: "Song Requests" },
         { key: "suggestions", label: "Suggestions" },
-        { key: "activity", label: "Activity Monitor" }
+        { key: "activity", label: "Activity Monitor" },
+        { key: "device_watch", label: "Device Watch" }
       ]}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
@@ -199,7 +213,9 @@ export default function AdminDashboard(): JSX.Element {
               ? "Song Requests"
               : activeSection === "suggestions"
                 ? "Guest Suggestions"
-                : "Activity Monitor"
+                : activeSection === "activity"
+                  ? "Activity Monitor"
+                  : "Device Watch"
       }
       subtitle="Live data updates from Firestore"
       onLogout={handleLogout}
@@ -267,6 +283,38 @@ export default function AdminDashboard(): JSX.Element {
               )}
             </section>
           </div>
+
+          <section style={{ ...panel, marginTop: 16 }}>
+            <h3 style={panelTitle}>Recent Suspicious Activity</h3>
+            {suspiciousEvents.length === 0 ? (
+              <p style={mutedText}>No suspicious recent events.</p>
+            ) : (
+              <div style={activityTableWrap}>
+                <table style={activityTable}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                      <th style={th}>Time</th>
+                      <th style={th}>Action</th>
+                      <th style={th}>Name</th>
+                      <th style={th}>Entry ID</th>
+                      <th style={th}>Device</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suspiciousEvents.map((log: ActivityLog) => (
+                      <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                        <td style={td}>{formatLogTime(log)}</td>
+                        <td style={td}>{log.type ?? "-"}</td>
+                        <td style={td}>{log.name ?? "-"}</td>
+                        <td style={td}>{log.entryId ?? "-"}</td>
+                        <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </>
       )}
 
@@ -322,6 +370,41 @@ export default function AdminDashboard(): JSX.Element {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeSection === "device_watch" && (
+        <div style={panel}>
+          <h3 style={panelTitle}>Devices Used For Multiple Accounts</h3>
+
+          {suspiciousDevices.length === 0 ? (
+            <p style={mutedText}>No suspicious devices found yet.</p>
+          ) : (
+            <div style={activityTableWrap}>
+              <table style={activityTable}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                    <th style={th}>Device</th>
+                    <th style={th}>Accounts Used</th>
+                    <th style={th}>Guest Names</th>
+                    <th style={th}>Total Events</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suspiciousDevices.map((device) => (
+                    <tr key={device.deviceId} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                      <td style={td}>{shortDevice(device.deviceId)}</td>
+                      <td style={td}>{device.accounts.join(", ")}</td>
+                      <td style={td}>{device.names.join(", ")}</td>
+                      <td style={td}>
+                        <span style={badge("#ff8c42")}>{device.events}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </AdminLayout>
