@@ -13,6 +13,12 @@ export default function RSVPTable({ guests }: any) {
     });
   };
 
+  const toggleMeal = async (id: string, current: string) => {
+    await updateDoc(doc(db, "rsvps", id), {
+      mealPreference: current === "veg" ? "nonveg" : "veg"
+    });
+  };
+
   return (
     <div style={wrap}>
       <h2 style={title}>RSVP List</h2>
@@ -74,6 +80,13 @@ export default function RSVPTable({ guests }: any) {
                   onClick={() => toggleAttendance(g.id, g.attendance)}
                 >
                   Toggle
+                </button>
+
+                <button
+                  style={toggleBtn}
+                  onClick={() => toggleMeal(g.id, g.mealPreference)}
+                >
+                  Toggle Menu
                 </button>
 
                 <button

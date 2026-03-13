@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 
 export default function useSongs() {
 
@@ -8,8 +8,13 @@ export default function useSongs() {
 
   useEffect(() => {
 
-    const unsub = onSnapshot(
+    const q = query(
       collection(db, "songs"),
+      orderBy("timestamp", "desc")
+    );
+
+    const unsub = onSnapshot(
+      q,
       (snap) => {
 
         const data = snap.docs.map(doc => ({
