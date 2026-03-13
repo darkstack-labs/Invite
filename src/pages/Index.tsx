@@ -310,7 +310,7 @@ const Index = () => {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && checkInvitation()}
-                      placeholder="Enter first name or full name (e.g. Anshika-Suman)"
+                      placeholder="Enter your first name"
                       className="input-gold w-full px-5 py-3 rounded-xl text-center text-sm font-medium mb-4"
                     />
 
