@@ -3,12 +3,15 @@ import CountdownTimer from '@/components/CountdownTimer';
 import ChampagneToast from '@/components/ChampagneToast';
 import PremiumHeading from '@/components/PremiumHeading';
 import { Calendar, MapPin, Sparkles, Star, Crown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface DesktopHomeLayoutProps {
   userName?: string;
 }
 
 const DesktopHomeLayout = ({ userName }: DesktopHomeLayoutProps) => {
+  const navigate = useNavigate();
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -184,6 +187,17 @@ const DesktopHomeLayout = ({ userName }: DesktopHomeLayoutProps) => {
               </p>
             </motion.div>
           </motion.div>
+
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.8 }}
+            onClick={() => navigate('/games')}
+            className="mt-1 px-7 py-3 rounded-lg border border-gold/30 text-gold bg-black/30 hover:bg-black/50 hover:text-champagne transition-colors"
+          >
+            Ready for games?
+          </motion.button>
         </motion.div>
       </div>
     </motion.div>

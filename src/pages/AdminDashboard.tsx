@@ -9,6 +9,7 @@ import useRSVPs from "../hooks/useRSPVs";
 import useSongs from "../hooks/useSongs";
 import useSuggestions from "../hooks/useSuggestions";
 import useActivityLogs from "../hooks/useActivityLogs";
+import useGamesAdminData from "../hooks/useGamesAdminData";
 import {
   blockDevice,
   blockEntry,
@@ -37,7 +38,8 @@ type Section =
   | "songs"
   | "suggestions"
   | "activity"
-  | "device_watch";
+  | "device_watch"
+  | "games";
 
 interface ActivityLog {
   id?: string;
@@ -50,6 +52,14 @@ interface ActivityLog {
   timestamp?: { toDate?: () => Date };
 }
 
+const nominationCategoryLabels: Record<string, string> = {
+  most_popular_male: "Most Popular Male",
+  most_popular_female: "Most Popular Female",
+  best_male_duo: "Best Male Duo",
+  best_female_duo: "Best Female Duo",
+  best_dancer: "Best Dancer"
+};
+
 export default function AdminDashboard(): JSX.Element {
 
   /* ---------------- DATA HOOKS ---------------- */
@@ -58,6 +68,15 @@ export default function AdminDashboard(): JSX.Element {
   const songs = useSongs() ?? [];
   const suggestions = useSuggestions() ?? [];
   const activityLogs = useActivityLogs() ?? [];
+  const {
+    selfNominations,
+    cysVotes,
+    mpmVotes,
+    mpfVotes,
+    bmdVotes,
+    bfdVotes,
+    swdbitpVotes
+  } = useGamesAdminData();
 
   /* ---------------- STATE ---------------- */
 
@@ -162,6 +181,31 @@ export default function AdminDashboard(): JSX.Element {
       .filter((log: ActivityLog) => suspiciousSet.has(log.deviceId ?? "unknown-device"))
       .slice(0, 12);
   }, [activityLogs, suspiciousDevices]);
+
+  const nominationGroups = useMemo(() => {
+    const base: Record<string, string[]> = {
+      most_popular_male: [],
+      most_popular_female: [],
+      best_male_duo: [],
+      best_female_duo: [],
+      best_dancer: []
+    };
+
+    selfNominations.forEach((record: any) => {
+      const name = record?.name ?? "Unknown";
+      const selected = Array.isArray(record?.selectedCategories)
+        ? record.selectedCategories
+        : [];
+
+      selected.forEach((category: string) => {
+        if (base[category]) {
+          base[category].push(name);
+        }
+      });
+    });
+
+    return base;
+  }, [selfNominations]);
 
   useEffect(() => {
     const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
@@ -309,7 +353,8 @@ export default function AdminDashboard(): JSX.Element {
         { key: "songs", label: "Song Requests" },
         { key: "suggestions", label: "Suggestions" },
         { key: "activity", label: "Activity Monitor" },
-        { key: "device_watch", label: "Device Watch" }
+        { key: "device_watch", label: "Device Watch" },
+        { key: "games", label: "Games Votes" }
       ]}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
@@ -324,7 +369,9 @@ export default function AdminDashboard(): JSX.Element {
                 ? "Guest Suggestions"
                 : activeSection === "activity"
                   ? "Activity Monitor"
-                  : "Device Watch"
+                  : activeSection === "device_watch"
+                    ? "Device Watch"
+                    : "Games Votes"
       }
       subtitle="Live data updates from Firestore"
       onLogout={handleLogout}
@@ -578,7 +625,240 @@ export default function AdminDashboard(): JSX.Element {
           )}
         </div>
       )}
+
+      {activeSection === "games" && (
+        <div style={{ display: "grid", gap: 16 }}>
+          <section style={panel}>
+            <h3 style={panelTitle}>Self Nominations</h3>
+            <p style={mutedText}>Grouped by category</p>
+
+            <div style={overviewGrid}>
+              {Object.entries(nominationCategoryLabels).map(([key, label]) => {
+                const names = nominationGroups[key] ?? [];
+                return (
+                  <div key={key} style={miniPanel}>
+                    <h4 style={miniPanelTitle}>{label}</h4>
+                    <div style={mutedTextSmall}>{names.length} submissions</div>
+                    {names.length === 0 ? (
+                      <p style={mutedText}>No submissions yet.</p>
+                    ) : (
+                      <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                        {names.slice(0, 18).map((name, idx) => (
+                          <div key={`${name}-${idx}`} style={rowCompact}>{name}</div>
+                        ))}
+                        {names.length > 18 && (
+                          <div style={mutedTextSmall}>+{names.length - 18} more</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <h4 style={miniPanelTitle}>Recent Self Nomination Entries</h4>
+              <div style={activityTableWrap}>
+                <table style={activityTable}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                      <th style={th}>Time</th>
+                      <th style={th}>Submitter</th>
+                      <th style={th}>Entry ID</th>
+                      <th style={th}>Gender</th>
+                      <th style={th}>Categories</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selfNominations.length === 0 && (
+                      <tr>
+                        <td style={emptyTd} colSpan={5}>No nomination entries yet.</td>
+                      </tr>
+                    )}
+                    {selfNominations.map((item: any) => (
+                      <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                        <td style={td}>{formatGameTime(item)}</td>
+                        <td style={td}>{item.name ?? "-"}</td>
+                        <td style={td}>{item.entryId ?? "-"}</td>
+                        <td style={td}>{item.gender ?? "-"}</td>
+                        <td style={td}>
+                          {Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
+                            ? item.selectedCategories
+                              .map((value: string) => nominationCategoryLabels[value] ?? value)
+                              .join(", ")
+                            : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>CYS Votes</h3>
+            <div style={activityTableWrap}>
+              <table style={activityTable}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                    <th style={th}>Time</th>
+                    <th style={th}>Submitter</th>
+                    <th style={th}>Entry ID</th>
+                    <th style={th}>Selected Pair</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cysVotes.length === 0 && (
+                    <tr>
+                      <td style={emptyTd} colSpan={4}>No CYS votes yet.</td>
+                    </tr>
+                  )}
+                  {cysVotes.map((item: any) => (
+                    <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                      <td style={td}>{formatGameTime(item)}</td>
+                      <td style={td}>{item.name ?? "-"}</td>
+                      <td style={td}>{item.entryId ?? "-"}</td>
+                      <td style={td}>{`${item.maleName ?? "-"} + ${item.femaleName ?? "-"}`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section style={overviewGrid}>
+            <div style={panel}>
+              <h3 style={panelTitle}>MPM Votes</h3>
+              <VoteTable
+                rows={mpmVotes}
+                emptyLabel="No MPM votes yet."
+              />
+            </div>
+
+            <div style={panel}>
+              <h3 style={panelTitle}>MPF Votes</h3>
+              <VoteTable
+                rows={mpfVotes}
+                emptyLabel="No MPF votes yet."
+              />
+            </div>
+          </section>
+
+          <section style={overviewGrid}>
+            <div style={panel}>
+              <h3 style={panelTitle}>BMD Votes</h3>
+              <DuoVoteTable
+                rows={bmdVotes}
+                leftLabel="Male 1"
+                rightLabel="Male 2"
+                emptyLabel="No BMD votes yet."
+              />
+            </div>
+
+            <div style={panel}>
+              <h3 style={panelTitle}>BFD Votes</h3>
+              <DuoVoteTable
+                rows={bfdVotes}
+                leftLabel="Female 1"
+                rightLabel="Female 2"
+                emptyLabel="No BFD votes yet."
+              />
+            </div>
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>SWDBITP Votes</h3>
+            <VoteTable
+              rows={swdbitpVotes}
+              emptyLabel="No SWDBITP votes yet."
+            />
+          </section>
+        </div>
+      )}
     </AdminLayout>
+  );
+}
+
+function VoteTable({
+  rows,
+  emptyLabel
+}: {
+  rows: any[];
+  emptyLabel: string;
+}) {
+  return (
+    <div style={activityTableWrap}>
+      <table style={activityTable}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+            <th style={th}>Time</th>
+            <th style={th}>Submitter</th>
+            <th style={th}>Entry ID</th>
+            <th style={th}>Nominee</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr>
+              <td style={emptyTd} colSpan={4}>{emptyLabel}</td>
+            </tr>
+          )}
+          {rows.map((item) => (
+            <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <td style={td}>{formatGameTime(item)}</td>
+              <td style={td}>{item.name ?? "-"}</td>
+              <td style={td}>{item.entryId ?? "-"}</td>
+              <td style={td}>{item.nomineeName ?? "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DuoVoteTable({
+  rows,
+  leftLabel,
+  rightLabel,
+  emptyLabel
+}: {
+  rows: any[];
+  leftLabel: string;
+  rightLabel: string;
+  emptyLabel: string;
+}) {
+  return (
+    <div style={activityTableWrap}>
+      <table style={activityTable}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+            <th style={th}>Time</th>
+            <th style={th}>Submitter</th>
+            <th style={th}>Entry ID</th>
+            <th style={th}>{leftLabel}</th>
+            <th style={th}>{rightLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr>
+              <td style={emptyTd} colSpan={5}>{emptyLabel}</td>
+            </tr>
+          )}
+          {rows.map((item) => (
+            <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <td style={td}>{formatGameTime(item)}</td>
+              <td style={td}>{item.name ?? "-"}</td>
+              <td style={td}>{item.entryId ?? "-"}</td>
+              <td style={td}>{item.male1Name ?? item.female1Name ?? "-"}</td>
+              <td style={td}>{item.male2Name ?? item.female2Name ?? "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -607,6 +887,26 @@ const row: CSSProperties = {
   gap: 8,
   padding: "8px 0",
   borderBottom: "1px solid rgba(255,255,255,0.08)"
+};
+
+const rowCompact: CSSProperties = {
+  fontSize: 13,
+  color: "#eceff3",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  paddingBottom: 6
+};
+
+const miniPanel: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.03)",
+  padding: 12
+};
+
+const miniPanelTitle: CSSProperties = {
+  margin: 0,
+  color: "#ffd57a",
+  fontSize: 14
 };
 
 const mutedText: CSSProperties = {
@@ -719,5 +1019,13 @@ const formatLogTime = (log: ActivityLog) => {
     if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString();
   }
 
+  return "-";
+};
+
+const formatGameTime = (record: { timestamp?: { toDate?: () => Date } }) => {
+  const dateFromTimestamp = record.timestamp?.toDate?.();
+  if (dateFromTimestamp instanceof Date) {
+    return dateFromTimestamp.toLocaleString();
+  }
   return "-";
 };

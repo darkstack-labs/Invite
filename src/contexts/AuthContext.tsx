@@ -11,6 +11,8 @@ interface UserProfile {
   gender: string;
 }
 
+export interface GuestProfile extends UserProfile {}
+
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
@@ -19,7 +21,7 @@ interface AuthContextType {
   isLoading: boolean;
 }
 
-const profiles: Record<string, UserProfile> = {
+export const guestProfiles: Record<string, GuestProfile> = {
   "060610": { name: "Pahal", entryId: "060610", gender: "Female" },
   "090726": { name: "Aditi", entryId: "090726", gender: "Female" },
   "220422": { name: "Sarvagya", entryId: "220422", gender: "Male" },
@@ -82,7 +84,7 @@ const profiles: Record<string, UserProfile> = {
 };
 
 export const guests: Record<string, string> = Object.fromEntries(
-  Object.values(profiles).map((p) => [p.name, p.entryId])
+  Object.values(guestProfiles).map((p) => [p.name, p.entryId])
 );
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -100,7 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (savedId) {
         const cleanId = savedId.trim();
-        const profile = profiles[cleanId];
+        const profile = guestProfiles[cleanId];
         const entryBlocked = await isEntryBlocked(cleanId);
         const deviceBlocked = await isDeviceBlocked(deviceId);
 
@@ -128,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await ensureAnonymousAuth();
       const cleanId = entryId.trim();
-      const profile = profiles[cleanId];
+      const profile = guestProfiles[cleanId];
       const deviceId = getDeviceId();
       const entryBlocked = await isEntryBlocked(cleanId);
       const deviceBlocked = await isDeviceBlocked(deviceId);

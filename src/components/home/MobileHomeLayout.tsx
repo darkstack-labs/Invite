@@ -3,12 +3,15 @@ import CountdownTimer from '@/components/CountdownTimer';
 import ChampagneToast from '@/components/ChampagneToast';
 import PremiumHeading from '@/components/PremiumHeading';
 import { Star, Crown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface MobileHomeLayoutProps {
   userName?: string;
 }
 
 const MobileHomeLayout = ({ userName }: MobileHomeLayoutProps) => {
+  const navigate = useNavigate();
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -101,6 +104,17 @@ const MobileHomeLayout = ({ userName }: MobileHomeLayoutProps) => {
         <p className="text-gold/60 text-xs tracking-[0.2em] uppercase mb-1">Welcome</p>
         <p className="font-display text-gradient-gold" style={{ fontSize: 'clamp(1.2rem, 5vw, 1.8rem)' }}>{userName}</p>
       </motion.div>
+
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.8 }}
+        onClick={() => navigate('/games')}
+        className="mt-[2vh] px-6 py-2.5 rounded-lg border border-gold/30 text-gold bg-black/30 hover:bg-black/50 hover:text-champagne transition-colors"
+      >
+        Ready for games?
+      </motion.button>
     </motion.div>
   );
 };

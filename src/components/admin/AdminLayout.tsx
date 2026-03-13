@@ -6,7 +6,8 @@ type Section =
   | "songs"
   | "suggestions"
   | "activity"
-  | "device_watch";
+  | "device_watch"
+  | "games";
 
 type NavItem = {
   key: Section;

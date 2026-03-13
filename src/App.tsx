@@ -20,6 +20,7 @@ import EventDetails from "./pages/EventDetails";
 import DressCode from "./pages/DressCode";
 import Menu from "./pages/Menu";
 import RSVP from "./pages/RSVP";
+import Games from "./pages/Games";
 import Profile from "./pages/Profile";
 import Missing from "./pages/Missing";
 import NotFound from "./pages/NotFound";
@@ -78,6 +79,7 @@ const AppContent = () => {
         <Route path="/dress-code" element={<ProtectedRoute><DressCode /></ProtectedRoute>} />
         <Route path="/menu" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
         <Route path="/rsvp" element={<ProtectedRoute><RSVP /></ProtectedRoute>} />
+        <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/missing" element={<Missing />} />
