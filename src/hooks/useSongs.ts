@@ -9,7 +9,7 @@ export default function useSongs() {
   useEffect(() => {
 
     const unsub = onSnapshot(
-      collection(db, "songRequests"),
+      collection(db, "songs"),
       (snap) => {
 
         const data = snap.docs.map(doc => ({

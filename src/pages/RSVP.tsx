@@ -46,6 +46,22 @@ type FormData = {
   dietary: string
 }
 
+const getSubmitErrorMessage = (err: unknown, fallback: string) => {
+  if (typeof err === 'object' && err !== null) {
+    const maybeCode = (err as { code?: string }).code
+    if (maybeCode === 'permission-denied') {
+      return 'Permission denied by Firestore rules'
+    }
+
+    const maybeMessage = (err as { message?: string }).message
+    if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
+      return maybeMessage
+    }
+  }
+
+  return fallback
+}
+
 const RSVP = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -137,7 +153,7 @@ const RSVP = () => {
       toast.success('RSVP submitted successfully')
     } catch (err) {
       console.error(err)
-      toast.error('Failed to submit RSVP')
+      toast.error(getSubmitErrorMessage(err, 'Failed to submit RSVP'))
     } finally {
       setIsSubmitting(false)
     }
@@ -164,7 +180,7 @@ const RSVP = () => {
       })
     } catch (err) {
       console.error(err)
-      toast.error('Failed to submit song request')
+      toast.error(getSubmitErrorMessage(err, 'Failed to submit song request'))
     }
   }
 
@@ -188,7 +204,7 @@ const RSVP = () => {
       })
     } catch (err) {
       console.error(err)
-      toast.error('Failed to submit suggestion')
+      toast.error(getSubmitErrorMessage(err, 'Failed to submit suggestion'))
     }
   }
 

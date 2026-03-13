@@ -28,7 +28,7 @@ export default function SongsTable({ songs }: any) {
           {songs.map((s:any)=>(
             <tr key={s.id} style={{borderBottom:"1px solid #222"}}>
               <td style={td}>{s.name}</td>
-              <td style={td}>{s.song}</td>
+              <td style={td}>{s.songName}</td>
               <td style={td}>{s.artist}</td>
             </tr>
           ))}

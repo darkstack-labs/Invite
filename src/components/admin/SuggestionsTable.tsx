@@ -27,7 +27,7 @@ export default function SuggestionsTable({ suggestions }: any) {
           {suggestions.map((s:any)=>(
             <tr key={s.id} style={{borderBottom:"1px solid #222"}}>
               <td style={td}>{s.name}</td>
-              <td style={td}>{s.message}</td>
+              <td style={td}>{s.suggestion}</td>
             </tr>
           ))}
 
