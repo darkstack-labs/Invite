@@ -18,6 +18,9 @@ export default function useSuggestions() {
         }));
 
         setSuggestions(data);
+      },
+      (error) => {
+        console.error("Suggestions snapshot error:", error);
       }
     );
 

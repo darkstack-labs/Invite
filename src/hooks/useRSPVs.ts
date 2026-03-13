@@ -18,6 +18,9 @@ export default function useRSVPs() {
         }));
 
         setRsvps(data);
+      },
+      (error) => {
+        console.error("RSVP snapshot error:", error);
       }
     );
 

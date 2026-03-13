@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth, signInAnonymously } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAbabuQzPAf5d_KQl3YYZ0ynEOQy_Xck7Q",
@@ -12,3 +13,21 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);
+
+let anonymousAuthPromise = null;
+
+export const ensureAnonymousAuth = async () => {
+  if (auth.currentUser) return auth.currentUser;
+
+  if (!anonymousAuthPromise) {
+    anonymousAuthPromise = signInAnonymously(auth)
+      .then((cred) => cred.user)
+      .catch((error) => {
+        anonymousAuthPromise = null;
+        throw error;
+      });
+  }
+
+  return anonymousAuthPromise;
+};

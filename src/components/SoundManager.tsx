@@ -19,6 +19,7 @@ export const useSounds = () => {
 
 export const SoundProvider = ({ children }: { children: ReactNode }) => {
   const [musicStarted, setMusicStarted] = useState(false);
+  const [musicAvailable, setMusicAvailable] = useState(true);
   const musicRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize audio element
@@ -28,7 +29,15 @@ export const SoundProvider = ({ children }: { children: ReactNode }) => {
     music.volume = 0.25;
     musicRef.current = music;
 
+    const handleError = () => {
+      setMusicAvailable(false);
+      setMusicStarted(false);
+    };
+
+    music.addEventListener('error', handleError);
+
     return () => {
+      music.removeEventListener('error', handleError);
       music.pause();
       music.src = '';
     };
@@ -37,7 +46,7 @@ export const SoundProvider = ({ children }: { children: ReactNode }) => {
   // Try autoplay or play on first interaction
   useEffect(() => {
     const tryAutoplay = async () => {
-      if (musicRef.current && !musicStarted) {
+      if (musicRef.current && !musicStarted && musicAvailable) {
         try {
           await musicRef.current.play();
           setMusicStarted(true);
@@ -50,12 +59,12 @@ export const SoundProvider = ({ children }: { children: ReactNode }) => {
     tryAutoplay();
 
     const handleFirstInteraction = async () => {
-      if (musicRef.current && !musicStarted) {
+      if (musicRef.current && !musicStarted && musicAvailable) {
         try {
           await musicRef.current.play();
           setMusicStarted(true);
         } catch (e) {
-          console.log('Music playback failed:', e);
+          // Ignore unsupported source/autoplay errors after first attempt
         }
       }
     };
@@ -71,7 +80,7 @@ export const SoundProvider = ({ children }: { children: ReactNode }) => {
         document.removeEventListener(event, handleFirstInteraction);
       });
     };
-  }, [musicStarted]);
+  }, [musicStarted, musicAvailable]);
 
   return (
     <SoundContext.Provider value={{ musicPlaying: musicStarted }}>

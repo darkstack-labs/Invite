@@ -18,6 +18,9 @@ export default function useSongs() {
         }));
 
         setSongs(data);
+      },
+      (error) => {
+        console.error("Songs snapshot error:", error);
       }
     );
 
