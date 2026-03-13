@@ -98,9 +98,6 @@ const RulesAndFAQ = () => {
     []
   );
 
-  const totalRules = rules.length;
-  const totalFaq = faqItems.length;
-
   const getVariant = () => {
     if (deviceType === "mobile") return "mobile";
     if (deviceType === "tablet") return "tablet";
@@ -119,18 +116,6 @@ const RulesAndFAQ = () => {
           subtitle="Everything you need to know"
           variant={getVariant()}
         />
-
-        <div className="max-w-4xl mx-auto mb-6 grid grid-cols-2 gap-3">
-          <div className="card-shimmer rounded-xl p-4 border border-gold/20">
-            <p className="text-champagne/60 text-xs uppercase tracking-widest">Total Rules</p>
-            <p className="text-gold text-2xl font-display mt-1">{totalRules}</p>
-          </div>
-
-          <div className="card-shimmer rounded-xl p-4 border border-gold/20">
-            <p className="text-champagne/60 text-xs uppercase tracking-widest">FAQ Questions</p>
-            <p className="text-gold text-2xl font-display mt-1">{totalFaq}</p>
-          </div>
-        </div>
 
         <div className="max-w-4xl mx-auto">
           <Tabs defaultValue="rules" className="w-full">
@@ -162,13 +147,9 @@ const RulesAndFAQ = () => {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="bg-black/20 rounded-lg p-3 md:p-4 flex items-start gap-3 border border-gold/10 hover:border-gold/30 transition-colors"
+                        className="bg-black/20 rounded-lg p-3 md:p-4 flex items-start gap-3"
                       >
-                        <div className="w-7 h-7 rounded-full border border-gold/30 flex items-center justify-center text-[10px] text-gold/80 font-semibold mt-0.5">
-                          {index + 1}
-                        </div>
-
-                        <Icon className="w-5 h-5 text-gold mt-1 shrink-0" />
+                        <Icon className="w-5 h-5 text-gold mt-1" />
 
                         <span className="text-gold/80 text-sm md:text-base">
                           {rule}
@@ -199,13 +180,13 @@ const RulesAndFAQ = () => {
                       return (
                         <motion.div
                           key={globalIndex}
-                          className="card-shimmer overflow-hidden border border-gold/10 hover:border-gold/25 transition-colors"
+                          className="card-shimmer overflow-hidden"
                         >
                           <button
                             onClick={() =>
                               setOpenIndex(isOpen ? null : globalIndex)
                             }
-                            className="w-full flex items-center justify-between p-4 text-left bg-black/20 hover:bg-black/30 transition-colors"
+                            className="w-full flex items-center justify-between p-4 text-left"
                           >
                             <div className="flex items-center gap-3">
                               <HelpCircle className="w-5 h-5 text-gold" />
@@ -226,7 +207,7 @@ const RulesAndFAQ = () => {
                                 animate={{ height: "auto", opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
                               >
-                                <div className="px-4 pb-4 border-t border-gold/10 pt-3">
+                                <div className="px-4 pb-4">
                                   <p className="text-champagne/80 text-sm">
                                     {item.answer}
                                   </p>
