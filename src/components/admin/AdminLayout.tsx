@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState, type CSSProperties } from "react";
 
-type Section = "overview" | "rsvps" | "songs" | "suggestions";
+type Section = "overview" | "rsvps" | "songs" | "suggestions" | "activity";
 
 type NavItem = {
   key: Section;

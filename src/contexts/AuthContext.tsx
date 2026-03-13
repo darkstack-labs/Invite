@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { logActivity } from "@/services/activityService";
 
 interface UserProfile {
   name: string;
@@ -114,10 +115,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cleanId = entryId.trim();
       const profile = profiles[cleanId];
 
-      if (!profile) return false;
+      if (!profile) {
+        void logActivity({
+          type: "login_failed",
+          entryId: cleanId,
+          details: "invalid-entry-id"
+        });
+        return false;
+      }
 
       setUser(profile);
       localStorage.setItem("batchPartyUser", cleanId);
+      void logActivity({
+        type: "login_success",
+        entryId: profile.entryId,
+        name: profile.name
+      });
       return true;
     } catch (error) {
       console.error("Login error", error);
@@ -127,6 +140,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    if (user) {
+      void logActivity({
+        type: "logout",
+        entryId: user.entryId,
+        name: user.name
+      });
+    }
     setUser(null);
     localStorage.removeItem("batchPartyUser");
   };

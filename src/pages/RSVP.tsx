@@ -34,6 +34,7 @@ import ConfettiEffect from '@/components/ConfettiEffect'
 import { submitRSVP, checkRSVP } from '@/services/rspvService'
 import { submitSongRequest } from '@/services/songService'
 import { submitSuggestion } from '@/services/suggestionService'
+import { logActivity } from '@/services/activityService'
 
 type Attendance = 'yes' | 'no'
 type Meal = 'veg' | 'nonveg'
@@ -152,6 +153,11 @@ const RSVP = () => {
 
       setShowConfetti(true)
       setIsSubmitted(true)
+      void logActivity({
+        type: 'rsvp_submitted',
+        entryId: formData.entryId,
+        name: formData.name
+      })
 
       toast.success('RSVP submitted successfully')
     } catch (err) {
@@ -176,6 +182,12 @@ const RSVP = () => {
       await submitSongRequest(songData)
 
       toast.success('Song request submitted')
+      void logActivity({
+        type: 'song_submitted',
+        entryId: songData.entryId,
+        name: songData.name,
+        details: `${songData.songName} - ${songData.artist}`
+      })
 
       setSongData({
         name: user?.name || '',
@@ -205,6 +217,12 @@ const RSVP = () => {
       await submitSuggestion(suggestionData)
 
       toast.success('Suggestion submitted')
+      void logActivity({
+        type: 'suggestion_submitted',
+        entryId: suggestionData.entryId,
+        name: suggestionData.name,
+        details: suggestionData.suggestion.slice(0, 120)
+      })
 
       setSuggestionData({
         name: user?.name || '',

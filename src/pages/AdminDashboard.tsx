@@ -8,6 +8,7 @@ import SuggestionsTable from "../components/admin/SuggestionsTable";
 import useRSVPs from "../hooks/useRSPVs";
 import useSongs from "../hooks/useSongs";
 import useSuggestions from "../hooks/useSuggestions";
+import useActivityLogs from "../hooks/useActivityLogs";
 
 interface RSVP {
   id?: string;
@@ -18,7 +19,18 @@ interface RSVP {
 }
 
 const ADMIN_PASSWORD = "randiokimehfil";
-type Section = "overview" | "rsvps" | "songs" | "suggestions";
+type Section = "overview" | "rsvps" | "songs" | "suggestions" | "activity";
+
+interface ActivityLog {
+  id?: string;
+  type?: string;
+  name?: string;
+  entryId?: string;
+  deviceId?: string;
+  details?: string;
+  clientTime?: string;
+  timestamp?: { toDate?: () => Date };
+}
 
 export default function AdminDashboard(): JSX.Element {
 
@@ -27,6 +39,7 @@ export default function AdminDashboard(): JSX.Element {
   const rsvps = useRSVPs() ?? [];
   const songs = useSongs() ?? [];
   const suggestions = useSuggestions() ?? [];
+  const activityLogs = useActivityLogs() ?? [];
 
   /* ---------------- STATE ---------------- */
 
@@ -59,6 +72,34 @@ export default function AdminDashboard(): JSX.Element {
   const recentRSVPs = useMemo(() => filteredGuests.slice(0, 6), [filteredGuests]);
   const recentSongs = useMemo(() => songs.slice(0, 6), [songs]);
   const recentSuggestions = useMemo(() => suggestions.slice(0, 4), [suggestions]);
+
+  const suspiciousDevices = useMemo(() => {
+    const deviceMap = new Map<string, { entryIds: Set<string>; names: Set<string>; events: number }>();
+
+    activityLogs.forEach((log: ActivityLog) => {
+      const deviceId = log.deviceId ?? "unknown-device";
+      const found = deviceMap.get(deviceId) ?? {
+        entryIds: new Set<string>(),
+        names: new Set<string>(),
+        events: 0
+      };
+
+      if (log.entryId) found.entryIds.add(log.entryId);
+      if (log.name) found.names.add(log.name);
+      found.events += 1;
+      deviceMap.set(deviceId, found);
+    });
+
+    return Array.from(deviceMap.entries())
+      .map(([deviceId, data]) => ({
+        deviceId,
+        accounts: Array.from(data.entryIds),
+        names: Array.from(data.names),
+        events: data.events
+      }))
+      .filter((d) => d.accounts.length > 1)
+      .sort((a, b) => b.accounts.length - a.accounts.length || b.events - a.events);
+  }, [activityLogs]);
 
   /* ---------------- AUTH ---------------- */
 
@@ -144,7 +185,8 @@ export default function AdminDashboard(): JSX.Element {
         { key: "overview", label: "Overview" },
         { key: "rsvps", label: "RSVP Manager" },
         { key: "songs", label: "Song Requests" },
-        { key: "suggestions", label: "Suggestions" }
+        { key: "suggestions", label: "Suggestions" },
+        { key: "activity", label: "Activity Monitor" }
       ]}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
@@ -155,7 +197,9 @@ export default function AdminDashboard(): JSX.Element {
             ? "RSVP Manager"
             : activeSection === "songs"
               ? "Song Requests"
-              : "Guest Suggestions"
+              : activeSection === "suggestions"
+                ? "Guest Suggestions"
+                : "Activity Monitor"
       }
       subtitle="Live data updates from Firestore"
       onLogout={handleLogout}
@@ -208,6 +252,20 @@ export default function AdminDashboard(): JSX.Element {
                 ))
               )}
             </section>
+
+            <section style={panel}>
+              <h3 style={panelTitle}>Suspicious Devices</h3>
+              {suspiciousDevices.length === 0 ? (
+                <p style={mutedText}>No device has logged multiple accounts yet.</p>
+              ) : (
+                suspiciousDevices.slice(0, 4).map((device) => (
+                  <div key={device.deviceId} style={row}>
+                    <span style={mutedTextSmall}>{shortDevice(device.deviceId)}</span>
+                    <span style={badge("#ff8c42")}>{device.accounts.length} accounts</span>
+                  </div>
+                ))
+              )}
+            </section>
           </div>
         </>
       )}
@@ -228,6 +286,44 @@ export default function AdminDashboard(): JSX.Element {
 
       {activeSection === "songs" && <SongsTable songs={songs} />}
       {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} />}
+      {activeSection === "activity" && (
+        <div style={panel}>
+          <h3 style={panelTitle}>Recent Activity Logs</h3>
+
+          <div style={activityTableWrap}>
+            <table style={activityTable}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                  <th style={th}>Time</th>
+                  <th style={th}>Action</th>
+                  <th style={th}>Name</th>
+                  <th style={th}>Entry ID</th>
+                  <th style={th}>Device</th>
+                  <th style={th}>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activityLogs.length === 0 && (
+                  <tr>
+                    <td style={emptyTd} colSpan={6}>No activity logs yet.</td>
+                  </tr>
+                )}
+
+                {activityLogs.slice(0, 120).map((log: ActivityLog) => (
+                  <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                    <td style={td}>{formatLogTime(log)}</td>
+                    <td style={td}>{log.type ?? "-"}</td>
+                    <td style={td}>{log.name ?? "-"}</td>
+                    <td style={td}>{log.entryId ?? "-"}</td>
+                    <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
+                    <td style={td}>{log.details || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
@@ -291,6 +387,36 @@ const searchInput: CSSProperties = {
   outline: "none"
 };
 
+const activityTableWrap: CSSProperties = {
+  overflowX: "auto"
+};
+
+const activityTable: CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  minWidth: 780
+};
+
+const th: CSSProperties = {
+  textAlign: "left",
+  padding: "11px 10px",
+  color: "#d8b35e",
+  fontSize: 12,
+  letterSpacing: 0.4
+};
+
+const td: CSSProperties = {
+  padding: "11px 10px",
+  fontSize: 13,
+  color: "#eceff3"
+};
+
+const emptyTd: CSSProperties = {
+  padding: "18px 12px",
+  textAlign: "center",
+  color: "#9fa3a9"
+};
+
 const badge = (color: string): CSSProperties => ({
   border: `1px solid ${color}`,
   color,
@@ -299,3 +425,22 @@ const badge = (color: string): CSSProperties => ({
   fontSize: 11,
   fontWeight: 700
 });
+
+const shortDevice = (deviceId: string) => {
+  if (deviceId.length <= 16) return deviceId;
+  return `${deviceId.slice(0, 8)}...${deviceId.slice(-6)}`;
+};
+
+const formatLogTime = (log: ActivityLog) => {
+  const dateFromTimestamp = log.timestamp?.toDate?.();
+  if (dateFromTimestamp instanceof Date) {
+    return dateFromTimestamp.toLocaleString();
+  }
+
+  if (log.clientTime) {
+    const parsed = new Date(log.clientTime);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString();
+  }
+
+  return "-";
+};
