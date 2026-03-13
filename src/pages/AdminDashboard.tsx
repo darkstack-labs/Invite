@@ -62,6 +62,10 @@ const nominationCategoryLabels: Record<string, string> = {
 
 export default function AdminDashboard(): JSX.Element {
 
+  /* ---------------- STATE ---------------- */
+
+  const [activeSection, setActiveSection] = useState<Section>("overview");
+
   /* ---------------- DATA HOOKS ---------------- */
 
   const rsvps = useRSVPs() ?? [];
@@ -76,7 +80,7 @@ export default function AdminDashboard(): JSX.Element {
     bmdVotes,
     bfdVotes,
     swdbitpVotes
-  } = useGamesAdminData();
+  } = useGamesAdminData(activeSection === "games");
 
   /* ---------------- STATE ---------------- */
 
@@ -87,7 +91,6 @@ export default function AdminDashboard(): JSX.Element {
   );
 
   const [password, setPassword] = useState<string>("");
-  const [activeSection, setActiveSection] = useState<Section>("overview");
   const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
   const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
   const entryNameMap = useMemo(() => {

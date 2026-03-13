@@ -65,7 +65,7 @@ const MAX_ROWS = 500;
 const withTimestampQuery = (name: string) =>
   query(collection(db, name), orderBy("timestamp", "desc"), limit(MAX_ROWS));
 
-export default function useGamesAdminData(): GamesAdminData {
+export default function useGamesAdminData(enabled: boolean): GamesAdminData {
   const [selfNominations, setSelfNominations] = useState<SelfNominationRecord[]>([]);
   const [cysVotes, setCysVotes] = useState<CysVoteRecord[]>([]);
   const [mpmVotes, setMpmVotes] = useState<SingleVoteRecord[]>([]);
@@ -75,6 +75,17 @@ export default function useGamesAdminData(): GamesAdminData {
   const [swdbitpVotes, setSwdbitpVotes] = useState<SingleVoteRecord[]>([]);
 
   useEffect(() => {
+    if (!enabled) {
+      setSelfNominations([]);
+      setCysVotes([]);
+      setMpmVotes([]);
+      setMpfVotes([]);
+      setBmdVotes([]);
+      setBfdVotes([]);
+      setSwdbitpVotes([]);
+      return;
+    }
+
     const configs: Array<{
       collectionName: string;
       setter: (value: any[]) => void;
@@ -110,7 +121,7 @@ export default function useGamesAdminData(): GamesAdminData {
     return () => {
       unsubs.forEach((unsub) => unsub());
     };
-  }, []);
+  }, [enabled]);
 
   return {
     selfNominations,
