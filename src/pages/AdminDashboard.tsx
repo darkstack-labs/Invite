@@ -71,6 +71,10 @@ export default function AdminDashboard(): JSX.Element {
   const [activeSection, setActiveSection] = useState<Section>("overview");
   const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
   const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
+  const entryNameMap = useMemo(() => {
+    const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
+    return Object.fromEntries(pairs) as Record<string, string>;
+  }, []);
 
   /* ---------------- DERIVED DATA ---------------- */
 
@@ -717,7 +721,3 @@ const formatLogTime = (log: ActivityLog) => {
 
   return "-";
 };
-  const entryNameMap = useMemo(() => {
-    const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
-    return Object.fromEntries(pairs) as Record<string, string>;
-  }, []);
