@@ -30,13 +30,13 @@ const Login = () => {
 
     await new Promise(resolve => setTimeout(resolve, 400));
 
-    const success = login(regNumber.trim());
+    const success = await login(regNumber.trim());
 
     if (success) { 
       setIsLoading(false);
       navigate('/home', { replace: true });
     } else {
-      setError('Invalid Entry ID.');
+      setError('Invalid Entry ID or this account/device is blocked.');
       setIsLoading(false);
     }
   };

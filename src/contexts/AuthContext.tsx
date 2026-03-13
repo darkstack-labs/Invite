@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { logActivity } from "@/services/activityService";
+import { getDeviceId } from "@/services/activityService";
+import { ensureAnonymousAuth } from "@/firebase";
+import { isDeviceBlocked, isEntryBlocked } from "@/services/blockService";
 
 interface UserProfile {
   name: string;
@@ -11,7 +14,7 @@ interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  login: (entryId: string) => boolean;
+  login: (entryId: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -89,31 +92,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
+    const restoreSession = async () => {
+      try {
+        await ensureAnonymousAuth();
+        const deviceId = getDeviceId();
       const savedId = localStorage.getItem("batchPartyUser");
 
       if (savedId) {
         const cleanId = savedId.trim();
         const profile = profiles[cleanId];
+        const entryBlocked = await isEntryBlocked(cleanId);
+        const deviceBlocked = await isDeviceBlocked(deviceId);
 
-        if (profile) {
+        if ((entryBlocked || deviceBlocked) && profile) {
+          toast.error("This account/device is blocked");
+          localStorage.removeItem("batchPartyUser");
+        } else if (profile) {
           setUser(profile);
         } else {
           localStorage.removeItem("batchPartyUser");
         }
       }
-    } catch (error) {
-      console.error("Auth load error", error);
-      localStorage.removeItem("batchPartyUser");
-    } finally {
-      setIsLoading(false);
-    }
+      } catch (error) {
+        console.error("Auth load error", error);
+        localStorage.removeItem("batchPartyUser");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void restoreSession();
   }, []);
 
-  const login = (entryId: string): boolean => {
+  const login = async (entryId: string): Promise<boolean> => {
     try {
+      await ensureAnonymousAuth();
       const cleanId = entryId.trim();
       const profile = profiles[cleanId];
+      const deviceId = getDeviceId();
+      const entryBlocked = await isEntryBlocked(cleanId);
+      const deviceBlocked = await isDeviceBlocked(deviceId);
+
+      if (entryBlocked || deviceBlocked) {
+        void logActivity({
+          type: "login_failed",
+          entryId: cleanId,
+          details: entryBlocked ? "blocked-entry" : "blocked-device"
+        });
+        return false;
+      }
 
       if (!profile) {
         void logActivity({

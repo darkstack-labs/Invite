@@ -1,4 +1,4 @@
-import { useState, useMemo, type CSSProperties } from "react";
+import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import AdminLayout from "../components/admin/AdminLayout";
 import AdminStats from "../components/admin/AdminStats";
 import RSVPTable from "../components/admin/RSPVTable";
@@ -9,6 +9,15 @@ import useRSVPs from "../hooks/useRSPVs";
 import useSongs from "../hooks/useSongs";
 import useSuggestions from "../hooks/useSuggestions";
 import useActivityLogs from "../hooks/useActivityLogs";
+import {
+  blockDevice,
+  blockEntry,
+  subscribeBlockedDevices,
+  subscribeBlockedEntries,
+  unblockDevice,
+  unblockEntry
+} from "@/services/blockService";
+import { toast } from "sonner";
 
 interface RSVP {
   id?: string;
@@ -57,6 +66,8 @@ export default function AdminDashboard(): JSX.Element {
 
   const [password, setPassword] = useState<string>("");
   const [activeSection, setActiveSection] = useState<Section>("overview");
+  const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
+  const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
 
   /* ---------------- DERIVED DATA ---------------- */
 
@@ -113,6 +124,46 @@ export default function AdminDashboard(): JSX.Element {
       .filter((log: ActivityLog) => suspiciousSet.has(log.deviceId ?? "unknown-device"))
       .slice(0, 12);
   }, [activityLogs, suspiciousDevices]);
+
+  useEffect(() => {
+    const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
+    const unsubDevices = subscribeBlockedDevices(setBlockedDeviceIds);
+
+    return () => {
+      unsubEntries();
+      unsubDevices();
+    };
+  }, []);
+
+  const handleToggleDeviceBlock = async (deviceId: string) => {
+    try {
+      if (blockedDeviceIds.has(deviceId)) {
+        await unblockDevice(deviceId);
+        toast.success("Device unblocked");
+      } else {
+        await blockDevice(deviceId);
+        toast.success("Device blocked");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update device block status");
+    }
+  };
+
+  const handleToggleEntryBlock = async (entryId: string, name?: string) => {
+    try {
+      if (blockedEntryIds.has(entryId)) {
+        await unblockEntry(entryId);
+        toast.success(`Unblocked ${entryId}`);
+      } else {
+        await blockEntry(entryId, name);
+        toast.success(`Blocked ${entryId}`);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update account block status");
+    }
+  };
 
   /* ---------------- AUTH ---------------- */
 
@@ -277,7 +328,9 @@ export default function AdminDashboard(): JSX.Element {
                 suspiciousDevices.slice(0, 4).map((device) => (
                   <div key={device.deviceId} style={row}>
                     <span style={mutedTextSmall}>{shortDevice(device.deviceId)}</span>
-                    <span style={badge("#ff8c42")}>{device.accounts.length} accounts</span>
+                    <span style={badge(blockedDeviceIds.has(device.deviceId) ? "#ff4d4f" : "#ff8c42")}>
+                      {blockedDeviceIds.has(device.deviceId) ? "Blocked" : `${device.accounts.length} accounts`}
+                    </span>
                   </div>
                 ))
               )}
@@ -294,23 +347,36 @@ export default function AdminDashboard(): JSX.Element {
                   <thead>
                     <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
                       <th style={th}>Time</th>
-                      <th style={th}>Action</th>
-                      <th style={th}>Name</th>
-                      <th style={th}>Entry ID</th>
-                      <th style={th}>Device</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {suspiciousEvents.map((log: ActivityLog) => (
-                      <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                  <th style={th}>Action</th>
+                  <th style={th}>Name</th>
+                  <th style={th}>Entry ID</th>
+                  <th style={th}>Device</th>
+                  <th style={th}>Controls</th>
+                </tr>
+              </thead>
+              <tbody>
+                {suspiciousEvents.map((log: ActivityLog) => (
+                  <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                         <td style={td}>{formatLogTime(log)}</td>
                         <td style={td}>{log.type ?? "-"}</td>
-                        <td style={td}>{log.name ?? "-"}</td>
-                        <td style={td}>{log.entryId ?? "-"}</td>
-                        <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                    <td style={td}>{log.name ?? "-"}</td>
+                    <td style={td}>{log.entryId ?? "-"}</td>
+                    <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
+                    <td style={td}>
+                      <div style={controls}>
+                        {log.entryId && (
+                          <button
+                            style={blockBtn(blockedEntryIds.has(log.entryId))}
+                            onClick={() => handleToggleEntryBlock(log.entryId as string, log.name)}
+                          >
+                            {blockedEntryIds.has(log.entryId) ? "Unblock Account" : "Block Account"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
                 </table>
               </div>
             )}
@@ -388,16 +454,42 @@ export default function AdminDashboard(): JSX.Element {
                     <th style={th}>Accounts Used</th>
                     <th style={th}>Guest Names</th>
                     <th style={th}>Total Events</th>
+                    <th style={th}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {suspiciousDevices.map((device) => (
                     <tr key={device.deviceId} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                       <td style={td}>{shortDevice(device.deviceId)}</td>
-                      <td style={td}>{device.accounts.join(", ")}</td>
+                      <td style={td}>
+                        <div style={chipWrap}>
+                          {device.accounts.map((entryId) => (
+                            <button
+                              key={entryId}
+                              style={blockBtn(blockedEntryIds.has(entryId))}
+                              onClick={() =>
+                                handleToggleEntryBlock(
+                                  entryId,
+                                  device.names.find((n) => n)
+                                )
+                              }
+                            >
+                              {blockedEntryIds.has(entryId) ? `Unblock ${entryId}` : `Block ${entryId}`}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
                       <td style={td}>{device.names.join(", ")}</td>
                       <td style={td}>
                         <span style={badge("#ff8c42")}>{device.events}</span>
+                      </td>
+                      <td style={td}>
+                        <button
+                          style={blockBtn(blockedDeviceIds.has(device.deviceId))}
+                          onClick={() => handleToggleDeviceBlock(device.deviceId)}
+                        >
+                          {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -499,6 +591,29 @@ const emptyTd: CSSProperties = {
   textAlign: "center",
   color: "#9fa3a9"
 };
+
+const chipWrap: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 6
+};
+
+const controls: CSSProperties = {
+  display: "flex",
+  gap: 6,
+  flexWrap: "wrap"
+};
+
+const blockBtn = (blocked: boolean): CSSProperties => ({
+  border: "none",
+  borderRadius: 7,
+  padding: "5px 9px",
+  cursor: "pointer",
+  fontSize: 11,
+  fontWeight: 700,
+  background: blocked ? "#2f7d32" : "#ff4d4f",
+  color: "#fff"
+});
 
 const badge = (color: string): CSSProperties => ({
   border: `1px solid ${color}`,
