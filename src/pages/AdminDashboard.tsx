@@ -164,8 +164,6 @@ export default function AdminDashboard(): JSX.Element {
   const [downloadFormat, setDownloadFormat] = useState<"excel" | "pdf">("excel");
   const [drillDownloadFormat, setDrillDownloadFormat] = useState<"excel" | "pdf">("excel");
   const [drillSearch, setDrillSearch] = useState("");
-  const [autoExportEnabled, setAutoExportEnabled] = useState(false);
-  const [autoExportEveryMinutes, setAutoExportEveryMinutes] = useState(15);
   const [governanceSignature, setGovernanceSignature] = useState("");
   const [governanceState, setGovernanceState] = useState<GovernanceState>({
     finalized: false,
@@ -523,25 +521,6 @@ export default function AdminDashboard(): JSX.Element {
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
   }, [drilldownFilteredRows]);
-
-  useEffect(() => {
-    if (!autoExportEnabled || (activeSection !== "games" && activeSection !== "games_monitor")) return;
-    const timer = window.setInterval(() => {
-      exportCsv(
-        `games-auto-snapshot-${new Date().toISOString().slice(0, 10)}-${Date.now()}.csv`,
-        filteredGameRows.map((row) => ({
-          category: row.categoryLabel,
-          voter_name: row.voterName,
-          voter_entry_id: row.voterEntryId,
-          selection: row.selection,
-          submitted_at: row.submittedAtText
-        }))
-      );
-      void logAdminAction("auto_snapshot_exported", `rows=${filteredGameRows.length}`);
-    }, Math.max(1, autoExportEveryMinutes) * 60 * 1000);
-
-    return () => window.clearInterval(timer);
-  }, [autoExportEnabled, autoExportEveryMinutes, activeSection, filteredGameRows]);
 
   useEffect(() => {
     const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
@@ -1286,7 +1265,7 @@ export default function AdminDashboard(): JSX.Element {
               <select
                 value={downloadFormat}
                 onChange={(e) => setDownloadFormat(e.target.value as "excel" | "pdf")}
-                style={{ ...filterInput, width: 110 }}
+                style={{ ...themedSelect, width: 110 }}
               >
                 <option value="excel">Excel</option>
                 <option value="pdf">PDF</option>
@@ -1302,7 +1281,7 @@ export default function AdminDashboard(): JSX.Element {
                 <select
                   value={gamesCategoryFilter}
                   onChange={(e) => setGamesCategoryFilter(e.target.value as "all" | GameCategory)}
-                  style={filterInput}
+                  style={themedSelect}
                 >
                   <option value="all">All Categories</option>
                   <option value="self">Self Nominations</option>
@@ -1565,7 +1544,7 @@ export default function AdminDashboard(): JSX.Element {
                     <select
                       value={drillDownloadFormat}
                       onChange={(e) => setDrillDownloadFormat(e.target.value as "excel" | "pdf")}
-                      style={{ ...filterInput, width: 110 }}
+                      style={{ ...themedSelect, width: 110 }}
                     >
                       <option value="excel">Excel</option>
                       <option value="pdf">PDF</option>
@@ -1655,7 +1634,7 @@ export default function AdminDashboard(): JSX.Element {
                 <select
                   value={downloadFormat}
                   onChange={(e) => setDownloadFormat(e.target.value as "excel" | "pdf")}
-                  style={{ ...filterInput, width: 120 }}
+                  style={{ ...themedSelect, width: 120 }}
                 >
                   <option value="excel">Excel</option>
                   <option value="pdf">PDF</option>
@@ -1665,57 +1644,36 @@ export default function AdminDashboard(): JSX.Element {
             </div>
 
             <div style={panel}>
-              <h3 style={panelTitle}>Auto Snapshot</h3>
-              <p style={mutedTextSmall}>Generates periodic report downloads on this admin browser only.</p>
-              <div style={controls}>
-                <button
-                  style={toggleViewBtn(autoExportEnabled)}
-                  onClick={() => setAutoExportEnabled((v) => !v)}
-                >
-                  {autoExportEnabled ? "Auto Snapshot: ON" : "Auto Snapshot: OFF"}
-                </button>
+              <h3 style={panelTitle}>Governance</h3>
+              <p style={mutedTextSmall}>Control result finalization and archive mode.</p>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={statRow}>
+                  <span style={mutedText}>Finalized</span>
+                  <strong>{governanceState.finalized ? "Yes" : "No"}</strong>
+                </div>
+                <div style={statRow}>
+                  <span style={mutedText}>Archive Mode</span>
+                  <strong>{governanceState.archiveMode ? "On" : "Off"}</strong>
+                </div>
                 <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={autoExportEveryMinutes}
-                  onChange={(e) => setAutoExportEveryMinutes(Number(e.target.value || 15))}
-                  style={{ ...filterInput, width: 120 }}
+                  value={governanceSignature}
+                  onChange={(e) => setGovernanceSignature(e.target.value)}
+                  placeholder="Signature to finalize"
+                  style={filterInput}
                 />
-                <span style={mutedTextSmall}>minutes</span>
+                <div style={controls}>
+                  <button style={csvBtn} onClick={handleFinalizeResults}>Finalize Results</button>
+                  <button style={smallBtn} onClick={handleUnfinalizeResults}>Unfinalize</button>
+                  <button style={smallBtn} onClick={handleToggleArchiveMode}>
+                    {governanceState.archiveMode ? "Disable Archive" : "Enable Archive"}
+                  </button>
+                </div>
+                {governanceState.finalizedAt && (
+                  <p style={mutedTextSmall}>
+                    Finalized at {new Date(governanceState.finalizedAt).toLocaleString()} by {governanceState.finalizedBy || "-"}
+                  </p>
+                )}
               </div>
-            </div>
-          </section>
-
-          <section style={panel}>
-            <h3 style={panelTitle}>Governance</h3>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={statRow}>
-                <span style={mutedText}>Finalized</span>
-                <strong>{governanceState.finalized ? "Yes" : "No"}</strong>
-              </div>
-              <div style={statRow}>
-                <span style={mutedText}>Archive Mode</span>
-                <strong>{governanceState.archiveMode ? "On" : "Off"}</strong>
-              </div>
-              <input
-                value={governanceSignature}
-                onChange={(e) => setGovernanceSignature(e.target.value)}
-                placeholder="Signature to finalize"
-                style={filterInput}
-              />
-              <div style={controls}>
-                <button style={csvBtn} onClick={handleFinalizeResults}>Finalize Results</button>
-                <button style={smallBtn} onClick={handleUnfinalizeResults}>Unfinalize</button>
-                <button style={smallBtn} onClick={handleToggleArchiveMode}>
-                  {governanceState.archiveMode ? "Disable Archive" : "Enable Archive"}
-                </button>
-              </div>
-              {governanceState.finalizedAt && (
-                <p style={mutedTextSmall}>
-                  Finalized at {new Date(governanceState.finalizedAt).toLocaleString()} by {governanceState.finalizedBy || "-"}
-                </p>
-              )}
             </div>
           </section>
 
@@ -2117,6 +2075,19 @@ const filterInput: CSSProperties = {
   outline: "none"
 };
 
+const themedSelect: CSSProperties = {
+  ...filterInput,
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  paddingRight: 30,
+  backgroundImage:
+    "linear-gradient(45deg, transparent 50%, #d8b35e 50%), linear-gradient(135deg, #d8b35e 50%, transparent 50%)",
+  backgroundPosition: "calc(100% - 14px) calc(50% - 3px), calc(100% - 9px) calc(50% - 3px)",
+  backgroundSize: "5px 5px, 5px 5px",
+  backgroundRepeat: "no-repeat"
+};
+
 const smallBtn: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: 8,
@@ -2281,29 +2252,3 @@ const toInputDate = (date: Date) => {
 
 const sanitizeFileName = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-
-const escapeCsvCell = (value: unknown) => {
-  const str = String(value ?? "");
-  if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
-    return `"${str.replace(/"/g, "\"\"")}"`;
-  }
-  return str;
-};
-
-const exportCsv = (filename: string, rows: Array<Record<string, unknown>>) => {
-  if (rows.length === 0) return;
-  const headers = Object.keys(rows[0]);
-  const lines = [
-    headers.join(","),
-    ...rows.map((row) => headers.map((header) => escapeCsvCell(row[header])).join(","))
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
