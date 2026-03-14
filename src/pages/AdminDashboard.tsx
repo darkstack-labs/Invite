@@ -177,7 +177,12 @@ export default function AdminDashboard(): JSX.Element {
   const [authenticated, setAuthenticated] = useState<boolean>(
     localStorage.getItem("admin-auth") === "true"
   );
-
+  const [adminSessionEntryId, setAdminSessionEntryId] = useState<string>(
+    localStorage.getItem("admin-auth") === "true"
+      ? localStorage.getItem("admin-entry-id")?.trim() ?? ""
+      : ""
+  );
+  const [loginEntryId, setLoginEntryId] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
   const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
@@ -202,7 +207,8 @@ export default function AdminDashboard(): JSX.Element {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
     return Object.fromEntries(pairs) as Record<string, string>;
   }, []);
-  const currentEntryId = user?.entryId ?? localStorage.getItem("batchPartyUser")?.trim() ?? "";
+  const contextEntryId = user?.entryId ?? localStorage.getItem("batchPartyUser")?.trim() ?? "";
+  const currentEntryId = adminSessionEntryId || contextEntryId;
   const adminRoleMap = useMemo(
     () => Object.fromEntries(adminRoles.map((r) => [r.entryId ?? "", r.role ?? "admin"])) as Record<string, "admin">,
     [adminRoles]
@@ -936,7 +942,7 @@ export default function AdminDashboard(): JSX.Element {
   };
 
   const handleAddAdmin = async () => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) return;
     const entryId = newAdminEntryId.trim();
     if (!entryId) return;
     if (entryId === SUPER_ADMIN_ENTRY_ID) return;
@@ -973,7 +979,10 @@ export default function AdminDashboard(): JSX.Element {
 
   const handleLogout = () => {
     localStorage.removeItem("admin-auth");
+    localStorage.removeItem("admin-entry-id");
     setAuthenticated(false);
+    setAdminSessionEntryId("");
+    setLoginEntryId("");
     setPassword("");
   };
 
@@ -1003,6 +1012,22 @@ export default function AdminDashboard(): JSX.Element {
           <h2 style={{ marginBottom: 20 }}>Admin Login</h2>
 
           <input
+            type="text"
+            placeholder="Enter admin Entry ID"
+            value={loginEntryId}
+            onChange={(e) => setLoginEntryId(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 10,
+              marginBottom: 10,
+              borderRadius: 6,
+              border: "1px solid #333",
+              background: "#111",
+              color: "#fff",
+            }}
+          />
+
+          <input
             type="password"
             placeholder="Enter admin password"
             value={password}
@@ -1030,16 +1055,25 @@ export default function AdminDashboard(): JSX.Element {
               cursor: "pointer",
             }}
             onClick={() => {
-              if (password === ADMIN_PASSWORD) {
-                if (!isAdmin) {
-                  alert("This Entry ID is not configured for admin access");
-                  return;
-                }
-                localStorage.setItem("admin-auth", "true");
-                setAuthenticated(true);
-              } else {
+              const entryId = loginEntryId.trim();
+              if (password !== ADMIN_PASSWORD) {
                 alert("Incorrect password");
+                return;
               }
+              if (!entryId) {
+                alert("Admin access denied");
+                return;
+              }
+              const allowedAdmin = entryId === SUPER_ADMIN_ENTRY_ID || !!adminRoleMap[entryId];
+              if (!allowedAdmin) {
+                alert("Admin access denied");
+                return;
+              }
+              localStorage.setItem("admin-auth", "true");
+              localStorage.setItem("admin-entry-id", entryId);
+              setAdminSessionEntryId(entryId);
+              setAuthenticated(true);
+              setPassword("");
             }}
           >
             Login
@@ -1782,7 +1816,7 @@ export default function AdminDashboard(): JSX.Element {
           <section style={panel}>
             <h3 style={panelTitle}>Admin Access</h3>
             <p style={mutedTextSmall}>
-              Add/remove admin Entry IDs. Super admin is fixed to {SUPER_ADMIN_ENTRY_ID}.
+              Add admin Entry IDs. Super admin is fixed to {SUPER_ADMIN_ENTRY_ID}.
             </p>
             <div style={{ ...controls, marginTop: 8 }}>
                 <input
@@ -1812,9 +1846,11 @@ export default function AdminDashboard(): JSX.Element {
                     </span>
                     <div style={controls}>
                       <span style={rolePillAdmin}>Admin</span>
-                      <button style={smallBtn} onClick={() => handleRemoveAdmin(admin.entryId ?? "")}>
-                      Remove
-                      </button>
+                      {isSuperAdmin && (
+                        <button style={smallBtn} onClick={() => handleRemoveAdmin(admin.entryId ?? "")}>
+                        Remove
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
