@@ -7,7 +7,8 @@ type Section =
   | "suggestions"
   | "activity"
   | "device_watch"
-  | "games";
+  | "games"
+  | "games_monitor";
 
 type NavItem = {
   key: Section;

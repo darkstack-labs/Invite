@@ -63,7 +63,8 @@ type Section =
   | "suggestions"
   | "activity"
   | "device_watch"
-  | "games";
+  | "games"
+  | "games_monitor";
 
 interface ActivityLog {
   id?: string;
@@ -142,7 +143,7 @@ export default function AdminDashboard(): JSX.Element {
     bmdVotes,
     bfdVotes,
     swdbitpVotes
-  } = useGamesAdminData(activeSection === "games");
+  } = useGamesAdminData(activeSection === "games" || activeSection === "games_monitor");
 
   /* ---------------- STATE ---------------- */
 
@@ -160,6 +161,8 @@ export default function AdminDashboard(): JSX.Element {
   const [gamesSearch, setGamesSearch] = useState("");
   const [gamesStartDate, setGamesStartDate] = useState("");
   const [gamesEndDate, setGamesEndDate] = useState("");
+  const [downloadFormat, setDownloadFormat] = useState<"excel" | "pdf">("excel");
+  const [drillDownloadFormat, setDrillDownloadFormat] = useState<"excel" | "pdf">("excel");
   const [drillSearch, setDrillSearch] = useState("");
   const [autoExportEnabled, setAutoExportEnabled] = useState(false);
   const [autoExportEveryMinutes, setAutoExportEveryMinutes] = useState(15);
@@ -522,7 +525,7 @@ export default function AdminDashboard(): JSX.Element {
   }, [drilldownFilteredRows]);
 
   useEffect(() => {
-    if (!autoExportEnabled || activeSection !== "games") return;
+    if (!autoExportEnabled || (activeSection !== "games" && activeSection !== "games_monitor")) return;
     const timer = window.setInterval(() => {
       exportCsv(
         `games-auto-snapshot-${new Date().toISOString().slice(0, 10)}-${Date.now()}.csv`,
@@ -551,7 +554,7 @@ export default function AdminDashboard(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (activeSection !== "games") return;
+    if (activeSection !== "games" && activeSection !== "games_monitor") return;
 
     const controlsRef = doc(db, "adminControls", "gamesResults");
     const unsubControl = onSnapshot(controlsRef, (snap) => {
@@ -601,7 +604,7 @@ export default function AdminDashboard(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (activeSection !== "games") return;
+    if (activeSection !== "games" && activeSection !== "games_monitor") return;
     const params = new URLSearchParams(window.location.search);
     params.set("gview", gamesView);
     params.set("gcat", gamesCategoryFilter);
@@ -684,41 +687,62 @@ export default function AdminDashboard(): JSX.Element {
     setGamesEndDate(end);
   };
 
-  const handleExportFilteredGames = () => {
-    if (filteredGameRows.length === 0) {
-      toast.error("No filtered rows to export");
+  const handleDownloadFiltered = () => {
+    if (downloadFormat === "excel") {
+      handleExportExcelReport();
       return;
     }
-
-    exportCsv(
-      `games-votes-${new Date().toISOString().slice(0, 10)}.csv`,
-      filteredGameRows.map((row) => ({
-        category: row.categoryLabel,
-        voter_name: row.voterName,
-        voter_entry_id: row.voterEntryId,
-        selection: row.selection,
-        submitted_at: row.submittedAtText
-      }))
-    );
-    void logAdminAction("filtered_csv_exported", `rows=${filteredGameRows.length}`);
+    handlePrintPdfReport();
   };
 
-  const handleExportDrilldown = () => {
+  const handleDownloadDrilldown = () => {
     if (!drilldown || drilldown.rows.length === 0) {
-      toast.error("No drilldown rows to export");
+      toast.error("No drilldown rows to download");
       return;
     }
 
-    exportCsv(
-      `${sanitizeFileName(drilldown.title)}-${new Date().toISOString().slice(0, 10)}.csv`,
-      drilldown.rows.map((row) => ({
-        voter_name: row.voterName,
-        voter_entry_id: row.voterEntryId,
-        selection: row.selection,
-        submitted_at: row.submittedAt
-      }))
-    );
-    void logAdminAction("drilldown_csv_exported", `${drilldown.title} rows=${drilldown.rows.length}`);
+    if (drillDownloadFormat === "excel") {
+      const workbookHtml = `
+        <html><head><meta charset="utf-8" /></head><body>
+        <table border="1">
+          <tr><th>Voter</th><th>Entry ID</th><th>Selection</th><th>Time</th></tr>
+          ${drilldown.rows
+            .map((row) => `<tr><td>${row.voterName}</td><td>${row.voterEntryId}</td><td>${row.selection}</td><td>${row.submittedAt}</td></tr>`)
+            .join("")}
+        </table>
+        </body></html>`;
+      const blob = new Blob([workbookHtml], { type: "application/vnd.ms-excel" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${sanitizeFileName(drilldown.title)}-${new Date().toISOString().slice(0, 10)}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      void logAdminAction("drilldown_excel_downloaded", `${drilldown.title} rows=${drilldown.rows.length}`);
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=1024,height=768");
+    if (!printWindow) {
+      toast.error("Unable to open print window");
+      return;
+    }
+    printWindow.document.write(`
+      <html><head><title>${drilldown.title}</title></head><body>
+      <h2>${drilldown.title}</h2>
+      <table border="1" cellspacing="0" cellpadding="6">
+        <tr><th>Voter</th><th>Entry ID</th><th>Selection</th><th>Time</th></tr>
+        ${drilldown.rows
+          .map((row) => `<tr><td>${row.voterName}</td><td>${row.voterEntryId}</td><td>${row.selection}</td><td>${row.submittedAt}</td></tr>`)
+          .join("")}
+      </table></body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    void logAdminAction("drilldown_pdf_printed", `${drilldown.title} rows=${drilldown.rows.length}`);
   };
 
   const logAdminAction = async (action: string, details: string) => {
@@ -964,7 +988,8 @@ export default function AdminDashboard(): JSX.Element {
         { key: "suggestions", label: "Suggestions" },
         { key: "activity", label: "Activity Monitor" },
         { key: "device_watch", label: "Device Watch" },
-        { key: "games", label: "Games Votes" }
+        { key: "games", label: "Games Votes" },
+        { key: "games_monitor", label: "Games Monitor" }
       ]}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
@@ -981,7 +1006,9 @@ export default function AdminDashboard(): JSX.Element {
                   ? "Activity Monitor"
                   : activeSection === "device_watch"
                     ? "Device Watch"
-                    : "Games Votes"
+                    : activeSection === "games"
+                      ? "Games Votes"
+                      : "Games Monitor"
       }
       subtitle="Live data updates from Firestore"
       onLogout={handleLogout}
@@ -1241,7 +1268,7 @@ export default function AdminDashboard(): JSX.Element {
           <section style={{ ...panel, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <div>
               <h3 style={panelTitle}>Games Analytics</h3>
-              <p style={mutedText}>Visual stats, advanced filters, CSV export, and drill-down voter details</p>
+              <p style={mutedText}>Visual stats, advanced filters, and drill-down voter details</p>
             </div>
             <div style={controls}>
               <button
@@ -1256,12 +1283,15 @@ export default function AdminDashboard(): JSX.Element {
               >
                 Detailed Tables
               </button>
-              <button
-                style={csvBtn}
-                onClick={handleExportFilteredGames}
+              <select
+                value={downloadFormat}
+                onChange={(e) => setDownloadFormat(e.target.value as "excel" | "pdf")}
+                style={{ ...filterInput, width: 110 }}
               >
-                Export Filtered CSV
-              </button>
+                <option value="excel">Excel</option>
+                <option value="pdf">PDF</option>
+              </select>
+              <button style={csvBtn} onClick={handleDownloadFiltered}>Download</button>
             </div>
           </section>
 
@@ -1323,111 +1353,6 @@ export default function AdminDashboard(): JSX.Element {
                 </div>
               </div>
             </div>
-          </section>
-
-          <section style={overviewGrid}>
-            <div style={panel}>
-              <h3 style={panelTitle}>Exports 2.0</h3>
-              <div style={controls}>
-                <button style={csvBtn} onClick={handleExportExcelReport}>Export Excel Report</button>
-                <button style={csvBtn} onClick={handlePrintPdfReport}>Print PDF Report</button>
-              </div>
-              <div style={{ ...controls, marginTop: 10 }}>
-                <button
-                  style={toggleViewBtn(autoExportEnabled)}
-                  onClick={() => setAutoExportEnabled((v) => !v)}
-                >
-                  {autoExportEnabled ? "Auto Snapshot: ON" : "Auto Snapshot: OFF"}
-                </button>
-                <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={autoExportEveryMinutes}
-                  onChange={(e) => setAutoExportEveryMinutes(Number(e.target.value || 15))}
-                  style={{ ...filterInput, width: 120 }}
-                />
-                <span style={mutedTextSmall}>minutes</span>
-              </div>
-            </div>
-
-            <div style={panel}>
-              <h3 style={panelTitle}>Governance</h3>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={statRow}>
-                  <span style={mutedText}>Finalized</span>
-                  <strong>{governanceState.finalized ? "Yes" : "No"}</strong>
-                </div>
-                <div style={statRow}>
-                  <span style={mutedText}>Archive Mode</span>
-                  <strong>{governanceState.archiveMode ? "On" : "Off"}</strong>
-                </div>
-                <input
-                  value={governanceSignature}
-                  onChange={(e) => setGovernanceSignature(e.target.value)}
-                  placeholder="Signature to finalize"
-                  style={filterInput}
-                />
-                <div style={controls}>
-                  <button style={csvBtn} onClick={handleFinalizeResults}>Finalize Results</button>
-                  <button style={smallBtn} onClick={handleUnfinalizeResults}>Unfinalize</button>
-                  <button style={smallBtn} onClick={handleToggleArchiveMode}>
-                    {governanceState.archiveMode ? "Disable Archive" : "Enable Archive"}
-                  </button>
-                </div>
-                {governanceState.finalizedAt && (
-                  <p style={mutedTextSmall}>
-                    Finalized at {new Date(governanceState.finalizedAt).toLocaleString()} by {governanceState.finalizedBy || "-"}
-                  </p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section style={panel}>
-            <h3 style={panelTitle}>Suspicious Pattern Insights</h3>
-            {suspiciousVoteInsights.length === 0 ? (
-              <p style={mutedText}>No suspicious patterns detected for current filters.</p>
-            ) : (
-              <div style={overviewGrid}>
-                {suspiciousVoteInsights.map((item) => (
-                  <div key={item.id} style={miniPanel}>
-                    <h4 style={miniPanelTitle}>{item.title}</h4>
-                    <p style={mutedText}>{item.detail}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section style={panel}>
-            <h3 style={panelTitle}>Admin Action Log</h3>
-            {auditLogs.length === 0 ? (
-              <p style={mutedText}>No admin actions logged yet.</p>
-            ) : (
-              <div style={activityTableWrap}>
-                <table style={activityTable}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-                      <th style={th}>Time</th>
-                      <th style={th}>Actor</th>
-                      <th style={th}>Action</th>
-                      <th style={th}>Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditLogs.map((log) => (
-                      <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                        <td style={td}>{formatGameTime(log)}</td>
-                        <td style={td}>{log.actor ?? "-"}</td>
-                        <td style={td}>{log.action ?? "-"}</td>
-                        <td style={td}>{log.details ?? "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </section>
 
           {gamesView === "analytics" && (
@@ -1637,7 +1562,15 @@ export default function AdminDashboard(): JSX.Element {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <h3 style={{ ...panelTitle, marginBottom: 0 }}>{drilldown.title}</h3>
                   <div style={controls}>
-                    <button style={csvBtn} onClick={handleExportDrilldown}>Export CSV</button>
+                    <select
+                      value={drillDownloadFormat}
+                      onChange={(e) => setDrillDownloadFormat(e.target.value as "excel" | "pdf")}
+                      style={{ ...filterInput, width: 110 }}
+                    >
+                      <option value="excel">Excel</option>
+                      <option value="pdf">PDF</option>
+                    </select>
+                    <button style={csvBtn} onClick={handleDownloadDrilldown}>Download</button>
                     <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
                   </div>
                 </div>
@@ -1709,6 +1642,128 @@ export default function AdminDashboard(): JSX.Element {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {activeSection === "games_monitor" && (
+        <div style={{ display: "grid", gap: 16 }}>
+          <section style={overviewGrid}>
+            <div style={panel}>
+              <h3 style={panelTitle}>Download Center</h3>
+              <p style={mutedText}>Export report files without CSV clutter</p>
+              <div style={controls}>
+                <select
+                  value={downloadFormat}
+                  onChange={(e) => setDownloadFormat(e.target.value as "excel" | "pdf")}
+                  style={{ ...filterInput, width: 120 }}
+                >
+                  <option value="excel">Excel</option>
+                  <option value="pdf">PDF</option>
+                </select>
+                <button style={csvBtn} onClick={handleDownloadFiltered}>Download</button>
+              </div>
+            </div>
+
+            <div style={panel}>
+              <h3 style={panelTitle}>Auto Snapshot</h3>
+              <p style={mutedTextSmall}>Generates periodic report downloads on this admin browser only.</p>
+              <div style={controls}>
+                <button
+                  style={toggleViewBtn(autoExportEnabled)}
+                  onClick={() => setAutoExportEnabled((v) => !v)}
+                >
+                  {autoExportEnabled ? "Auto Snapshot: ON" : "Auto Snapshot: OFF"}
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={autoExportEveryMinutes}
+                  onChange={(e) => setAutoExportEveryMinutes(Number(e.target.value || 15))}
+                  style={{ ...filterInput, width: 120 }}
+                />
+                <span style={mutedTextSmall}>minutes</span>
+              </div>
+            </div>
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>Governance</h3>
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={statRow}>
+                <span style={mutedText}>Finalized</span>
+                <strong>{governanceState.finalized ? "Yes" : "No"}</strong>
+              </div>
+              <div style={statRow}>
+                <span style={mutedText}>Archive Mode</span>
+                <strong>{governanceState.archiveMode ? "On" : "Off"}</strong>
+              </div>
+              <input
+                value={governanceSignature}
+                onChange={(e) => setGovernanceSignature(e.target.value)}
+                placeholder="Signature to finalize"
+                style={filterInput}
+              />
+              <div style={controls}>
+                <button style={csvBtn} onClick={handleFinalizeResults}>Finalize Results</button>
+                <button style={smallBtn} onClick={handleUnfinalizeResults}>Unfinalize</button>
+                <button style={smallBtn} onClick={handleToggleArchiveMode}>
+                  {governanceState.archiveMode ? "Disable Archive" : "Enable Archive"}
+                </button>
+              </div>
+              {governanceState.finalizedAt && (
+                <p style={mutedTextSmall}>
+                  Finalized at {new Date(governanceState.finalizedAt).toLocaleString()} by {governanceState.finalizedBy || "-"}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>Suspicious Pattern Insights</h3>
+            {suspiciousVoteInsights.length === 0 ? (
+              <p style={mutedText}>No suspicious patterns detected for current filters.</p>
+            ) : (
+              <div style={overviewGrid}>
+                {suspiciousVoteInsights.map((item) => (
+                  <div key={item.id} style={miniPanel}>
+                    <h4 style={miniPanelTitle}>{item.title}</h4>
+                    <p style={mutedText}>{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>Admin Action Log</h3>
+            {auditLogs.length === 0 ? (
+              <p style={mutedText}>No admin actions logged yet.</p>
+            ) : (
+              <div style={activityTableWrap}>
+                <table style={activityTable}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                      <th style={th}>Time</th>
+                      <th style={th}>Actor</th>
+                      <th style={th}>Action</th>
+                      <th style={th}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                        <td style={td}>{formatGameTime(log)}</td>
+                        <td style={td}>{log.actor ?? "-"}</td>
+                        <td style={td}>{log.action ?? "-"}</td>
+                        <td style={td}>{log.details ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       )}
     </AdminLayout>
