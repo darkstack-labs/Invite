@@ -19,7 +19,18 @@ import {
   unblockEntry
 } from "@/services/blockService";
 import { toast } from "sonner";
-import { deleteDoc, doc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc
+} from "firebase/firestore";
 import { db } from "@/firebase";
 import { guests } from "@/contexts/AuthContext";
 import {
@@ -44,6 +55,7 @@ interface RSVP {
 }
 
 const ADMIN_PASSWORD = "randiokimehfil";
+const ADMIN_ACTOR = "admin";
 type Section =
   | "overview"
   | "rsvps"
@@ -94,6 +106,22 @@ type NormalizedGameRow = {
   submittedAtDate: Date | null;
 };
 
+type GovernanceState = {
+  finalized: boolean;
+  finalizedAt?: string;
+  finalizedBy?: string;
+  signature?: string;
+  archiveMode: boolean;
+};
+
+type AuditLog = {
+  id: string;
+  action?: string;
+  actor?: string;
+  details?: string;
+  timestamp?: { toDate?: () => Date };
+};
+
 export default function AdminDashboard(): JSX.Element {
 
   /* ---------------- STATE ---------------- */
@@ -132,6 +160,15 @@ export default function AdminDashboard(): JSX.Element {
   const [gamesSearch, setGamesSearch] = useState("");
   const [gamesStartDate, setGamesStartDate] = useState("");
   const [gamesEndDate, setGamesEndDate] = useState("");
+  const [drillSearch, setDrillSearch] = useState("");
+  const [autoExportEnabled, setAutoExportEnabled] = useState(false);
+  const [autoExportEveryMinutes, setAutoExportEveryMinutes] = useState(15);
+  const [governanceSignature, setGovernanceSignature] = useState("");
+  const [governanceState, setGovernanceState] = useState<GovernanceState>({
+    finalized: false,
+    archiveMode: false
+  });
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
   const entryNameMap = useMemo(() => {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
@@ -461,6 +498,48 @@ export default function AdminDashboard(): JSX.Element {
     return [...suspiciousDominance, ...rapidVoters].slice(0, 8);
   }, [filteredGameRows, gamesStats.categories]);
 
+  const drilldownFilteredRows = useMemo(() => {
+    if (!drilldown) return [];
+    const q = drillSearch.trim().toLowerCase();
+    if (!q) return drilldown.rows;
+    return drilldown.rows.filter((row) =>
+      `${row.voterName} ${row.voterEntryId} ${row.selection}`.toLowerCase().includes(q)
+    );
+  }, [drilldown, drillSearch]);
+
+  const drillTopVoters = useMemo(() => {
+    const map = new Map<string, { name: string; count: number }>();
+    drilldownFilteredRows.forEach((row) => {
+      const key = row.voterEntryId;
+      const found = map.get(key) ?? { name: row.voterName, count: 0 };
+      found.count += 1;
+      map.set(key, found);
+    });
+    return Array.from(map.entries())
+      .map(([entryId, value]) => ({ entryId, ...value }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [drilldownFilteredRows]);
+
+  useEffect(() => {
+    if (!autoExportEnabled || activeSection !== "games") return;
+    const timer = window.setInterval(() => {
+      exportCsv(
+        `games-auto-snapshot-${new Date().toISOString().slice(0, 10)}-${Date.now()}.csv`,
+        filteredGameRows.map((row) => ({
+          category: row.categoryLabel,
+          voter_name: row.voterName,
+          voter_entry_id: row.voterEntryId,
+          selection: row.selection,
+          submitted_at: row.submittedAtText
+        }))
+      );
+      void logAdminAction("auto_snapshot_exported", `rows=${filteredGameRows.length}`);
+    }, Math.max(1, autoExportEveryMinutes) * 60 * 1000);
+
+    return () => window.clearInterval(timer);
+  }, [autoExportEnabled, autoExportEveryMinutes, activeSection, filteredGameRows]);
+
   useEffect(() => {
     const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
     const unsubDevices = subscribeBlockedDevices(setBlockedDeviceIds);
@@ -470,6 +549,69 @@ export default function AdminDashboard(): JSX.Element {
       unsubDevices();
     };
   }, []);
+
+  useEffect(() => {
+    if (activeSection !== "games") return;
+
+    const controlsRef = doc(db, "adminControls", "gamesResults");
+    const unsubControl = onSnapshot(controlsRef, (snap) => {
+      if (!snap.exists()) {
+        setGovernanceState({ finalized: false, archiveMode: false });
+        return;
+      }
+      const data = snap.data() as GovernanceState;
+      setGovernanceState({
+        finalized: !!data.finalized,
+        finalizedAt: data.finalizedAt,
+        finalizedBy: data.finalizedBy,
+        signature: data.signature,
+        archiveMode: !!data.archiveMode
+      });
+    });
+
+    const q = query(
+      collection(db, "adminAuditLogs"),
+      orderBy("timestamp", "desc"),
+      limit(40)
+    );
+    const unsubAudit = onSnapshot(q, (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AuditLog[];
+      setAuditLogs(rows);
+    });
+
+    return () => {
+      unsubControl();
+      unsubAudit();
+    };
+  }, [activeSection]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("gview");
+    const category = params.get("gcat") as "all" | GameCategory | null;
+    const q = params.get("gq");
+    const start = params.get("gstart");
+    const end = params.get("gend");
+
+    if (view === "analytics" || view === "tables") setGamesView(view);
+    if (category) setGamesCategoryFilter(category);
+    if (q) setGamesSearch(q);
+    if (start) setGamesStartDate(start);
+    if (end) setGamesEndDate(end);
+  }, []);
+
+  useEffect(() => {
+    if (activeSection !== "games") return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("gview", gamesView);
+    params.set("gcat", gamesCategoryFilter);
+    if (gamesSearch) params.set("gq", gamesSearch); else params.delete("gq");
+    if (gamesStartDate) params.set("gstart", gamesStartDate); else params.delete("gstart");
+    if (gamesEndDate) params.set("gend", gamesEndDate); else params.delete("gend");
+    const queryString = params.toString();
+    const nextUrl = `${window.location.pathname}${queryString ? `?${queryString}` : ""}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, [activeSection, gamesView, gamesCategoryFilter, gamesSearch, gamesStartDate, gamesEndDate]);
 
   const handleToggleDeviceBlock = async (deviceId: string) => {
     try {
@@ -558,6 +700,7 @@ export default function AdminDashboard(): JSX.Element {
         submitted_at: row.submittedAtText
       }))
     );
+    void logAdminAction("filtered_csv_exported", `rows=${filteredGameRows.length}`);
   };
 
   const handleExportDrilldown = () => {
@@ -575,6 +718,163 @@ export default function AdminDashboard(): JSX.Element {
         submitted_at: row.submittedAt
       }))
     );
+    void logAdminAction("drilldown_csv_exported", `${drilldown.title} rows=${drilldown.rows.length}`);
+  };
+
+  const logAdminAction = async (action: string, details: string) => {
+    try {
+      await addDoc(collection(db, "adminAuditLogs"), {
+        action,
+        actor: ADMIN_ACTOR,
+        details,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Failed to log admin action", error);
+    }
+  };
+
+  const handleSetGovernance = async (next: Partial<GovernanceState>, action: string) => {
+    try {
+      const nextState: GovernanceState = {
+        ...governanceState,
+        ...next
+      };
+      await setDoc(doc(db, "adminControls", "gamesResults"), nextState, { merge: true });
+      setGovernanceState(nextState);
+      await logAdminAction(action, JSON.stringify(next));
+      toast.success("Governance updated");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update governance");
+    }
+  };
+
+  const handleFinalizeResults = async () => {
+    if (!governanceSignature.trim()) {
+      toast.error("Enter signature before finalizing");
+      return;
+    }
+    await handleSetGovernance(
+      {
+        finalized: true,
+        finalizedAt: new Date().toISOString(),
+        finalizedBy: ADMIN_ACTOR,
+        signature: governanceSignature.trim()
+      },
+      "results_finalized"
+    );
+  };
+
+  const handleUnfinalizeResults = async () => {
+    await handleSetGovernance(
+      {
+        finalized: false,
+        finalizedAt: "",
+        finalizedBy: "",
+        signature: ""
+      },
+      "results_unfinalized"
+    );
+  };
+
+  const handleToggleArchiveMode = async () => {
+    await handleSetGovernance({ archiveMode: !governanceState.archiveMode }, "archive_mode_toggled");
+  };
+
+  const handleExportExcelReport = () => {
+    const analyticsRows = [
+      { metric: "Unique Voters", value: gamesStats.uniqueVoterCount },
+      { metric: "Invitees", value: gamesStats.inviteeCount },
+      { metric: "Participation Rate", value: `${gamesStats.participationRate}%` }
+    ];
+
+    const suspiciousRows = suspiciousVoteInsights.map((item) => ({
+      title: item.title,
+      detail: item.detail
+    }));
+
+    const workbookHtml = `
+      <html>
+        <head><meta charset="utf-8" /></head>
+        <body>
+          <table border="1">
+            <tr><th colspan="2">Analytics</th></tr>
+            <tr><th>Metric</th><th>Value</th></tr>
+            ${analyticsRows.map((r) => `<tr><td>${r.metric}</td><td>${r.value}</td></tr>`).join("")}
+          </table>
+          <br/>
+          <table border="1">
+            <tr><th colspan="5">Raw Votes</th></tr>
+            <tr><th>Category</th><th>Voter</th><th>Entry ID</th><th>Selection</th><th>Time</th></tr>
+            ${filteredGameRows
+              .map(
+                (r) =>
+                  `<tr><td>${r.categoryLabel}</td><td>${r.voterName}</td><td>${r.voterEntryId}</td><td>${r.selection}</td><td>${r.submittedAtText}</td></tr>`
+              )
+              .join("")}
+          </table>
+          <br/>
+          <table border="1">
+            <tr><th colspan="2">Suspicious Insights</th></tr>
+            <tr><th>Title</th><th>Detail</th></tr>
+            ${suspiciousRows.map((r) => `<tr><td>${r.title}</td><td>${r.detail}</td></tr>`).join("")}
+          </table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([workbookHtml], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `games-report-${new Date().toISOString().slice(0, 10)}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    void logAdminAction("excel_report_exported", `rows=${filteredGameRows.length}`);
+  };
+
+  const handlePrintPdfReport = () => {
+    const printWindow = window.open("", "_blank", "width=1024,height=768");
+    if (!printWindow) {
+      toast.error("Unable to open print window");
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Games Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 16px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+            th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; text-align: left; }
+            h1, h2 { margin: 0 0 10px 0; }
+          </style>
+        </head>
+        <body>
+          <h1>Games Report</h1>
+          <h2>Summary</h2>
+          <table>
+            <tr><th>Metric</th><th>Value</th></tr>
+            <tr><td>Unique Voters</td><td>${gamesStats.uniqueVoterCount}</td></tr>
+            <tr><td>Invitees</td><td>${gamesStats.inviteeCount}</td></tr>
+            <tr><td>Participation Rate</td><td>${gamesStats.participationRate}%</td></tr>
+          </table>
+          <h2>Suspicious Insights</h2>
+          <table>
+            <tr><th>Title</th><th>Detail</th></tr>
+            ${suspiciousVoteInsights.map((item) => `<tr><td>${item.title}</td><td>${item.detail}</td></tr>`).join("")}
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    void logAdminAction("pdf_report_printed", `rows=${filteredGameRows.length}`);
   };
 
   /* ---------------- AUTH ---------------- */
@@ -1025,6 +1325,65 @@ export default function AdminDashboard(): JSX.Element {
             </div>
           </section>
 
+          <section style={overviewGrid}>
+            <div style={panel}>
+              <h3 style={panelTitle}>Exports 2.0</h3>
+              <div style={controls}>
+                <button style={csvBtn} onClick={handleExportExcelReport}>Export Excel Report</button>
+                <button style={csvBtn} onClick={handlePrintPdfReport}>Print PDF Report</button>
+              </div>
+              <div style={{ ...controls, marginTop: 10 }}>
+                <button
+                  style={toggleViewBtn(autoExportEnabled)}
+                  onClick={() => setAutoExportEnabled((v) => !v)}
+                >
+                  {autoExportEnabled ? "Auto Snapshot: ON" : "Auto Snapshot: OFF"}
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={autoExportEveryMinutes}
+                  onChange={(e) => setAutoExportEveryMinutes(Number(e.target.value || 15))}
+                  style={{ ...filterInput, width: 120 }}
+                />
+                <span style={mutedTextSmall}>minutes</span>
+              </div>
+            </div>
+
+            <div style={panel}>
+              <h3 style={panelTitle}>Governance</h3>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={statRow}>
+                  <span style={mutedText}>Finalized</span>
+                  <strong>{governanceState.finalized ? "Yes" : "No"}</strong>
+                </div>
+                <div style={statRow}>
+                  <span style={mutedText}>Archive Mode</span>
+                  <strong>{governanceState.archiveMode ? "On" : "Off"}</strong>
+                </div>
+                <input
+                  value={governanceSignature}
+                  onChange={(e) => setGovernanceSignature(e.target.value)}
+                  placeholder="Signature to finalize"
+                  style={filterInput}
+                />
+                <div style={controls}>
+                  <button style={csvBtn} onClick={handleFinalizeResults}>Finalize Results</button>
+                  <button style={smallBtn} onClick={handleUnfinalizeResults}>Unfinalize</button>
+                  <button style={smallBtn} onClick={handleToggleArchiveMode}>
+                    {governanceState.archiveMode ? "Disable Archive" : "Enable Archive"}
+                  </button>
+                </div>
+                {governanceState.finalizedAt && (
+                  <p style={mutedTextSmall}>
+                    Finalized at {new Date(governanceState.finalizedAt).toLocaleString()} by {governanceState.finalizedBy || "-"}
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+
           <section style={panel}>
             <h3 style={panelTitle}>Suspicious Pattern Insights</h3>
             {suspiciousVoteInsights.length === 0 ? (
@@ -1037,6 +1396,36 @@ export default function AdminDashboard(): JSX.Element {
                     <p style={mutedText}>{item.detail}</p>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>Admin Action Log</h3>
+            {auditLogs.length === 0 ? (
+              <p style={mutedText}>No admin actions logged yet.</p>
+            ) : (
+              <div style={activityTableWrap}>
+                <table style={activityTable}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                      <th style={th}>Time</th>
+                      <th style={th}>Actor</th>
+                      <th style={th}>Action</th>
+                      <th style={th}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                        <td style={td}>{formatGameTime(log)}</td>
+                        <td style={td}>{log.actor ?? "-"}</td>
+                        <td style={td}>{log.action ?? "-"}</td>
+                        <td style={td}>{log.details ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
@@ -1252,6 +1641,23 @@ export default function AdminDashboard(): JSX.Element {
                     <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
                   </div>
                 </div>
+                <div style={{ ...controls, margin: "10px 0" }}>
+                  <input
+                    value={drillSearch}
+                    onChange={(e) => setDrillSearch(e.target.value)}
+                    placeholder="Search inside drilldown..."
+                    style={{ ...filterInput, minWidth: 260 }}
+                  />
+                  {drillTopVoters.map((voter) => (
+                    <button
+                      key={voter.entryId}
+                      style={smallBtn}
+                      onClick={() => setDrillSearch(voter.entryId)}
+                    >
+                      {voter.name} ({voter.count})
+                    </button>
+                  ))}
+                </div>
                 <div style={activityTableWrap}>
                   <table style={activityTable}>
                     <thead>
@@ -1263,14 +1669,35 @@ export default function AdminDashboard(): JSX.Element {
                       </tr>
                     </thead>
                     <tbody>
-                      {drilldown.rows.length === 0 && (
+                      {drilldownFilteredRows.length === 0 && (
                         <tr>
                           <td style={emptyTd} colSpan={4}>No rows found.</td>
                         </tr>
                       )}
-                      {drilldown.rows.map((row, idx) => (
+                      {drilldownFilteredRows.map((row, idx) => (
                         <tr key={`${row.voterEntryId}-${idx}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                          <td style={td}>{row.voterName}</td>
+                          <td style={td}>
+                            <button
+                              style={linkBtn}
+                              onClick={() => {
+                                const rows = filteredGameRows
+                                  .filter((r) => r.voterEntryId === row.voterEntryId)
+                                  .map((r) => ({
+                                    voterName: r.voterName,
+                                    voterEntryId: r.voterEntryId,
+                                    selection: `${r.categoryLabel}: ${r.selection}`,
+                                    submittedAt: r.submittedAtText
+                                  }));
+                                setDrilldown({
+                                  title: `All votes by ${row.voterName} (${row.voterEntryId})`,
+                                  rows
+                                });
+                                setDrillSearch("");
+                              }}
+                            >
+                              {row.voterName}
+                            </button>
+                          </td>
                           <td style={td}>{row.voterEntryId}</td>
                           <td style={td}>{row.selection}</td>
                           <td style={td}>{row.submittedAt}</td>
@@ -1295,33 +1722,42 @@ function VoteTable({
   rows: any[];
   emptyLabel: string;
 }) {
+  const [visibleCount, setVisibleCount] = useState(150);
+  const visibleRows = rows.slice(0, visibleCount);
   return (
-    <div style={activityTableWrap}>
-      <table style={activityTable}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-            <th style={th}>Time</th>
-            <th style={th}>Submitter</th>
-            <th style={th}>Entry ID</th>
-            <th style={th}>Nominee</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
-            <tr>
-              <td style={emptyTd} colSpan={4}>{emptyLabel}</td>
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={activityTableWrap}>
+        <table style={activityTable}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+              <th style={th}>Time</th>
+              <th style={th}>Submitter</th>
+              <th style={th}>Entry ID</th>
+              <th style={th}>Nominee</th>
             </tr>
-          )}
-          {rows.map((item) => (
-            <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              <td style={td}>{item.submittedAtText ?? formatGameTime(item)}</td>
-              <td style={td}>{item.voterName ?? item.name ?? "-"}</td>
-              <td style={td}>{item.voterEntryId ?? item.entryId ?? "-"}</td>
-              <td style={td}>{item.selection ?? item.nomineeName ?? "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td style={emptyTd} colSpan={4}>{emptyLabel}</td>
+              </tr>
+            )}
+            {visibleRows.map((item) => (
+              <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                <td style={td}>{item.submittedAtText ?? formatGameTime(item)}</td>
+                <td style={td}>{item.voterName ?? item.name ?? "-"}</td>
+                <td style={td}>{item.voterEntryId ?? item.entryId ?? "-"}</td>
+                <td style={td}>{item.selection ?? item.nomineeName ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > visibleCount && (
+        <button style={smallBtn} onClick={() => setVisibleCount((v) => v + 150)}>
+          Load More ({rows.length - visibleCount} remaining)
+        </button>
+      )}
     </div>
   );
 }
@@ -1337,35 +1773,44 @@ function DuoVoteTable({
   rightLabel: string;
   emptyLabel: string;
 }) {
+  const [visibleCount, setVisibleCount] = useState(150);
+  const visibleRows = rows.slice(0, visibleCount);
   return (
-    <div style={activityTableWrap}>
-      <table style={activityTable}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-            <th style={th}>Time</th>
-            <th style={th}>Submitter</th>
-            <th style={th}>Entry ID</th>
-            <th style={th}>{leftLabel}</th>
-            <th style={th}>{rightLabel}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
-            <tr>
-              <td style={emptyTd} colSpan={5}>{emptyLabel}</td>
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={activityTableWrap}>
+        <table style={activityTable}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+              <th style={th}>Time</th>
+              <th style={th}>Submitter</th>
+              <th style={th}>Entry ID</th>
+              <th style={th}>{leftLabel}</th>
+              <th style={th}>{rightLabel}</th>
             </tr>
-          )}
-          {rows.map((item) => (
-            <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              <td style={td}>{item.submittedAtText ?? formatGameTime(item)}</td>
-              <td style={td}>{item.voterName ?? item.name ?? "-"}</td>
-              <td style={td}>{item.voterEntryId ?? item.entryId ?? "-"}</td>
-              <td style={td}>{item.selection ?? `${item.male1Name ?? item.female1Name ?? "-"} + ${item.male2Name ?? item.female2Name ?? "-"}`}</td>
-              <td style={td}>{item.value ?? 1}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td style={emptyTd} colSpan={5}>{emptyLabel}</td>
+              </tr>
+            )}
+            {visibleRows.map((item) => (
+              <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                <td style={td}>{item.submittedAtText ?? formatGameTime(item)}</td>
+                <td style={td}>{item.voterName ?? item.name ?? "-"}</td>
+                <td style={td}>{item.voterEntryId ?? item.entryId ?? "-"}</td>
+                <td style={td}>{item.selection ?? `${item.male1Name ?? item.female1Name ?? "-"} + ${item.male2Name ?? item.female2Name ?? "-"}`}</td>
+                <td style={td}>{item.value ?? 1}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > visibleCount && (
+        <button style={smallBtn} onClick={() => setVisibleCount((v) => v + 150)}>
+          Load More ({rows.length - visibleCount} remaining)
+        </button>
+      )}
     </div>
   );
 }
@@ -1708,6 +2153,16 @@ const closeBtn: CSSProperties = {
   color: "#fff",
   cursor: "pointer",
   fontWeight: 700
+};
+
+const linkBtn: CSSProperties = {
+  border: "none",
+  background: "transparent",
+  color: "#7cc4ff",
+  cursor: "pointer",
+  textDecoration: "underline",
+  padding: 0,
+  fontSize: 13
 };
 
 const blockBtn = (blocked: boolean): CSSProperties => ({
