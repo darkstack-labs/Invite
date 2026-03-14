@@ -32,7 +32,7 @@ import {
   setDoc
 } from "firebase/firestore";
 import { db } from "@/firebase";
-import { guests } from "@/contexts/AuthContext";
+import { guests, useAuth } from "@/contexts/AuthContext";
 import {
   Bar,
   BarChart,
@@ -56,6 +56,7 @@ interface RSVP {
 
 const ADMIN_PASSWORD = "randiokimehfil";
 const ADMIN_ACTOR = "admin";
+const SUPER_ADMIN_ENTRY_ID = "220422";
 type Section =
   | "overview"
   | "rsvps"
@@ -131,7 +132,16 @@ type AuditLog = {
   timestamp?: { toDate?: () => Date };
 };
 
+type AdminRoleDoc = {
+  id: string;
+  entryId?: string;
+  role?: "admin";
+  addedBy?: string;
+  timestamp?: { toDate?: () => Date };
+};
+
 export default function AdminDashboard(): JSX.Element {
+  const { user } = useAuth();
 
   /* ---------------- STATE ---------------- */
 
@@ -178,11 +188,21 @@ export default function AdminDashboard(): JSX.Element {
     archiveMode: false
   });
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [adminRoles, setAdminRoles] = useState<AdminRoleDoc[]>([]);
+  const [newAdminEntryId, setNewAdminEntryId] = useState("");
   const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
   const entryNameMap = useMemo(() => {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
     return Object.fromEntries(pairs) as Record<string, string>;
   }, []);
+  const currentEntryId = user?.entryId ?? localStorage.getItem("batchPartyUser")?.trim() ?? "";
+  const adminRoleMap = useMemo(
+    () => Object.fromEntries(adminRoles.map((r) => [r.entryId ?? "", r.role ?? "admin"])) as Record<string, "admin">,
+    [adminRoles]
+  );
+  const isSuperAdmin = currentEntryId === SUPER_ADMIN_ENTRY_ID;
+  const isAdmin = isSuperAdmin || !!adminRoleMap[currentEntryId];
+  const authBadge = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Viewer";
 
   /* ---------------- DERIVED DATA ---------------- */
 
@@ -584,6 +604,15 @@ export default function AdminDashboard(): JSX.Element {
   }, [activeSection]);
 
   useEffect(() => {
+    const q = query(collection(db, "adminRoles"), orderBy("timestamp", "desc"), limit(80));
+    const unsub = onSnapshot(q, (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AdminRoleDoc[];
+      setAdminRoles(rows);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get("gview");
     const category = params.get("gcat") as "all" | GameCategory | null;
@@ -612,6 +641,7 @@ export default function AdminDashboard(): JSX.Element {
   }, [activeSection, gamesView, gamesCategoryFilter, gamesSearch, gamesStartDate, gamesEndDate]);
 
   const handleToggleDeviceBlock = async (deviceId: string) => {
+    if (!isSuperAdmin) return;
     try {
       if (blockedDeviceIds.has(deviceId)) {
         await unblockDevice(deviceId);
@@ -627,6 +657,7 @@ export default function AdminDashboard(): JSX.Element {
   };
 
   const handleToggleEntryBlock = async (entryId: string, name?: string) => {
+    if (!isSuperAdmin) return;
     try {
       if (blockedEntryIds.has(entryId)) {
         await unblockEntry(entryId);
@@ -754,6 +785,7 @@ export default function AdminDashboard(): JSX.Element {
   };
 
   const handleSetGovernance = async (next: Partial<GovernanceState>, action: string) => {
+    if (!isSuperAdmin) return;
     try {
       const nextState: GovernanceState = {
         ...governanceState,
@@ -896,6 +928,40 @@ export default function AdminDashboard(): JSX.Element {
     void logAdminAction("pdf_report_printed", `rows=${filteredGameRows.length}`);
   };
 
+  const handleAddAdmin = async () => {
+    if (!isSuperAdmin) return;
+    const entryId = newAdminEntryId.trim();
+    if (!entryId) return;
+    if (entryId === SUPER_ADMIN_ENTRY_ID) return;
+    try {
+      await setDoc(doc(db, "adminRoles", entryId), {
+        entryId,
+        role: "admin",
+        addedBy: currentEntryId || ADMIN_ACTOR,
+        timestamp: serverTimestamp()
+      });
+      setNewAdminEntryId("");
+      void logAdminAction("admin_added", `entryId=${entryId}`);
+      toast.success(`Admin access added for ${entryId}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to add admin");
+    }
+  };
+
+  const handleRemoveAdmin = async (entryId: string) => {
+    if (!isSuperAdmin) return;
+    if (!entryId || entryId === SUPER_ADMIN_ENTRY_ID) return;
+    try {
+      await deleteDoc(doc(db, "adminRoles", entryId));
+      void logAdminAction("admin_removed", `entryId=${entryId}`);
+      toast.success(`Admin removed: ${entryId}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to remove admin");
+    }
+  };
+
   /* ---------------- AUTH ---------------- */
 
   const handleLogout = () => {
@@ -958,6 +1024,10 @@ export default function AdminDashboard(): JSX.Element {
             }}
             onClick={() => {
               if (password === ADMIN_PASSWORD) {
+                if (!isAdmin) {
+                  alert("This Entry ID is not configured for admin access");
+                  return;
+                }
                 localStorage.setItem("admin-auth", "true");
                 setAuthenticated(true);
               } else {
@@ -1005,7 +1075,7 @@ export default function AdminDashboard(): JSX.Element {
                       ? "Games Votes"
                       : "Games Monitor"
       }
-      subtitle="Live data updates from Firestore"
+      subtitle={`Live data updates from Firestore • ${authBadge}`}
       onLogout={handleLogout}
     >
       {activeSection === "overview" && (
@@ -1692,6 +1762,47 @@ export default function AdminDashboard(): JSX.Element {
                   </p>
                 )}
               </div>
+            </div>
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>Admin Access</h3>
+            <p style={mutedTextSmall}>
+              Add/remove admin Entry IDs. Super admin is fixed to {SUPER_ADMIN_ENTRY_ID}.
+            </p>
+            <div style={{ ...controls, marginTop: 8 }}>
+              <input
+                value={newAdminEntryId}
+                onChange={(e) => setNewAdminEntryId(e.target.value)}
+                placeholder="Entry ID (e.g. 300525)"
+                style={{ ...filterInput, maxWidth: 220 }}
+              />
+              <button style={csvBtn} onClick={handleAddAdmin}>Add Admin</button>
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+              <div style={miniPanel}>
+                <div style={{ ...rowCompact, borderBottom: "none", paddingBottom: 0 }}>
+                  <strong>{entryNameMap[SUPER_ADMIN_ENTRY_ID] ?? "Super Admin"}</strong> ({SUPER_ADMIN_ENTRY_ID}) • super_admin
+                </div>
+              </div>
+              {adminRoles
+                .filter((r) => (r.entryId ?? "") !== SUPER_ADMIN_ENTRY_ID)
+                .map((admin) => (
+                  <div key={admin.id} style={{ ...miniPanel, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <div>
+                      <div style={rowCompact}>
+                        <strong>{entryNameMap[admin.entryId ?? ""] ?? admin.entryId ?? "-"}</strong> ({admin.entryId ?? "-"}) • admin
+                      </div>
+                    </div>
+                    <button style={smallBtn} onClick={() => handleRemoveAdmin(admin.entryId ?? "")}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              {adminRoles.filter((r) => (r.entryId ?? "") !== SUPER_ADMIN_ENTRY_ID).length === 0 && (
+                <p style={mutedText}>No additional admins added yet.</p>
+              )}
             </div>
           </section>
 
