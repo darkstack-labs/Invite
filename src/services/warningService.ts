@@ -8,6 +8,7 @@ import {
   type FieldValue,
 } from "firebase/firestore";
 import { db } from "@/firebase";
+import { ensureAnonymousAuth } from "@/firebase";
 
 export const DEFAULT_WARNING_MESSAGE =
   "FINAL WARNING: Your account has been flagged for serious misconduct. Any further violation will result in immediate permanent suspension without review, reversal, or second chance. This is your first and last notice.";
@@ -36,6 +37,7 @@ export const sendGuestWarning = async ({
   sentBy?: string;
   message?: string;
 }) => {
+  await ensureAnonymousAuth();
   const warningRef = doc(db, "guestWarnings", entryId);
   await setDoc(
     warningRef,
@@ -60,6 +62,7 @@ export const clearGuestWarning = async ({
   entryId: string;
   acknowledgedByEntryId?: string;
 }) => {
+  await ensureAnonymousAuth();
   await setDoc(
     doc(db, "guestWarnings", entryId),
     {

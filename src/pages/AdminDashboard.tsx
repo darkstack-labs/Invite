@@ -225,6 +225,20 @@ export default function AdminDashboard(): JSX.Element {
   const isAdmin = isSuperAdmin || !!adminRoleMap[currentEntryId];
   const authBadge = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Viewer";
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === "object" && error !== null) {
+      const maybeCode = (error as { code?: string }).code;
+      const maybeMessage = (error as { message?: string }).message;
+      if (typeof maybeCode === "string" && maybeCode.length > 0) {
+        return `${fallback} (${maybeCode})`;
+      }
+      if (typeof maybeMessage === "string" && maybeMessage.length > 0) {
+        return `${fallback}: ${maybeMessage}`;
+      }
+    }
+    return fallback;
+  };
+
   /* ---------------- DERIVED DATA ---------------- */
 
   const filteredGuests = useMemo(() => {
@@ -676,7 +690,10 @@ export default function AdminDashboard(): JSX.Element {
   }, [activeSection, gamesView, gamesCategoryFilter, gamesSearch, gamesStartDate, gamesEndDate]);
 
   const handleToggleDeviceBlock = async (deviceId: string) => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) {
+      toast.error("Admin access required");
+      return;
+    }
     try {
       if (blockedDeviceIds.has(deviceId)) {
         await unblockDevice(deviceId);
@@ -687,12 +704,15 @@ export default function AdminDashboard(): JSX.Element {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Failed to update device block status");
+      toast.error(getErrorMessage(error, "Failed to update device block status"));
     }
   };
 
   const handleToggleEntryBlock = async (entryId: string, name?: string) => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) {
+      toast.error("Admin access required");
+      return;
+    }
     try {
       if (blockedEntryIds.has(entryId)) {
         await unblockEntry(entryId);
@@ -703,12 +723,15 @@ export default function AdminDashboard(): JSX.Element {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Failed to update account block status");
+      toast.error(getErrorMessage(error, "Failed to update account block status"));
     }
   };
 
   const handleSendWarning = async (entryId: string, name?: string) => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) {
+      toast.error("Admin access required");
+      return;
+    }
     try {
       await sendGuestWarning({
         entryId,
@@ -720,19 +743,22 @@ export default function AdminDashboard(): JSX.Element {
       toast.success(`Warning sent to ${entryId}`);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to send warning");
+      toast.error(getErrorMessage(error, "Failed to send warning"));
     }
   };
 
   const handleClearWarning = async (entryId: string) => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) {
+      toast.error("Admin access required");
+      return;
+    }
     try {
       await clearGuestWarning({ entryId, acknowledgedByEntryId: currentEntryId || ADMIN_ACTOR });
       void logAdminAction("guest_warning_cleared", `entryId=${entryId}`);
       toast.success(`Warning cleared for ${entryId}`);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to clear warning");
+      toast.error(getErrorMessage(error, "Failed to clear warning"));
     }
   };
 
@@ -746,19 +772,21 @@ export default function AdminDashboard(): JSX.Element {
         <button
           style={blockBtn(blockedEntryIds.has(entryId))}
           onClick={() => handleToggleEntryBlock(entryId, name)}
+          disabled={!isAdmin}
         >
           {blockedEntryIds.has(entryId) ? "Unblock Account" : "Block Account"}
         </button>
         <button
           style={warnBtn(hasActiveWarning)}
           onClick={() => handleSendWarning(entryId, name)}
+          disabled={!isAdmin}
         >
           Send Warning
         </button>
         <button
           style={clearWarnBtn}
           onClick={() => handleClearWarning(entryId)}
-          disabled={!hasActiveWarning}
+          disabled={!hasActiveWarning || !isAdmin}
         >
           Clear Warning
         </button>
@@ -1362,6 +1390,7 @@ export default function AdminDashboard(): JSX.Element {
                           <button
                             style={blockBtn(blockedDeviceIds.has(log.deviceId))}
                             onClick={() => handleToggleDeviceBlock(log.deviceId as string)}
+                            disabled={!isAdmin}
                           >
                             {blockedDeviceIds.has(log.deviceId) ? "Unblock Device" : "Block Device"}
                           </button>
@@ -1415,6 +1444,7 @@ export default function AdminDashboard(): JSX.Element {
                         <button
                           style={blockBtn(blockedDeviceIds.has(device.deviceId))}
                           onClick={() => handleToggleDeviceBlock(device.deviceId)}
+                          disabled={!isAdmin}
                         >
                           {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
                         </button>

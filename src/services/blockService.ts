@@ -8,18 +8,22 @@ import {
   collection
 } from "firebase/firestore";
 import { db } from "@/firebase";
+import { ensureAnonymousAuth } from "@/firebase";
 
 export const isEntryBlocked = async (entryId: string) => {
+  await ensureAnonymousAuth();
   const snap = await getDoc(doc(db, "blockedEntries", entryId));
   return snap.exists();
 };
 
 export const isDeviceBlocked = async (deviceId: string) => {
+  await ensureAnonymousAuth();
   const snap = await getDoc(doc(db, "blockedDevices", deviceId));
   return snap.exists();
 };
 
 export const blockEntry = async (entryId: string, name?: string) => {
+  await ensureAnonymousAuth();
   await setDoc(doc(db, "blockedEntries", entryId), {
     entryId,
     name: name ?? "",
@@ -29,10 +33,12 @@ export const blockEntry = async (entryId: string, name?: string) => {
 };
 
 export const unblockEntry = async (entryId: string) => {
+  await ensureAnonymousAuth();
   await deleteDoc(doc(db, "blockedEntries", entryId));
 };
 
 export const blockDevice = async (deviceId: string) => {
+  await ensureAnonymousAuth();
   await setDoc(doc(db, "blockedDevices", deviceId), {
     deviceId,
     source: "admin-dashboard",
@@ -41,6 +47,7 @@ export const blockDevice = async (deviceId: string) => {
 };
 
 export const unblockDevice = async (deviceId: string) => {
+  await ensureAnonymousAuth();
   await deleteDoc(doc(db, "blockedDevices", deviceId));
 };
 
