@@ -1,5 +1,6 @@
 import {
   doc,
+  type FirestoreError,
   getDoc,
   runTransaction,
   serverTimestamp,
@@ -28,6 +29,7 @@ export type VoteKey = "cys" | "mpm" | "mpf" | "bmd" | "bfd" | "swdbitp";
 export type VoteSubmissionStatus = Record<VoteKey, number>;
 
 const MAX_VOTE_SUBMISSIONS_PER_CATEGORY = 3;
+const TX_MAX_ATTEMPTS = 2;
 
 const voteCollectionByKey: Record<VoteKey, string> = {
   cys: "cys_votes",
@@ -42,6 +44,11 @@ const withTimestamp = <T extends Record<string, unknown>>(payload: T) => ({
   ...payload,
   timestamp: serverTimestamp() as FieldValue,
 });
+
+const isResourceExhausted = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  (error as FirestoreError).code === "resource-exhausted";
 
 export const submitSelfNominations = async (
   payload: BaseSubmission & { gender: string; selectedCategories: NominationCategory[] }
@@ -111,22 +118,13 @@ export const submitSwdbitpVote = async (
 export const getVoteSubmissionStatus = async (entryId: string) => {
   const counterSnap = await getDoc(doc(db, "games_vote_counters", entryId));
   if (!counterSnap.exists()) {
-    const [cys, mpm, mpf, bmd, bfd, swdbitp] = await Promise.all([
-      hasSubmitted(voteCollectionByKey.cys, entryId),
-      hasSubmitted(voteCollectionByKey.mpm, entryId),
-      hasSubmitted(voteCollectionByKey.mpf, entryId),
-      hasSubmitted(voteCollectionByKey.bmd, entryId),
-      hasSubmitted(voteCollectionByKey.bfd, entryId),
-      hasSubmitted(voteCollectionByKey.swdbitp, entryId),
-    ]);
-
     return {
-      cys: cys ? 1 : 0,
-      mpm: mpm ? 1 : 0,
-      mpf: mpf ? 1 : 0,
-      bmd: bmd ? 1 : 0,
-      bfd: bfd ? 1 : 0,
-      swdbitp: swdbitp ? 1 : 0,
+      cys: 0,
+      mpm: 0,
+      mpf: 0,
+      bmd: 0,
+      bfd: 0,
+      swdbitp: 0,
     };
   }
 
@@ -142,11 +140,6 @@ export const getVoteSubmissionStatus = async (entryId: string) => {
   };
 };
 
-const hasSubmitted = async (collectionName: string, entryId: string) => {
-  const snap = await getDoc(doc(db, collectionName, entryId));
-  return snap.exists();
-};
-
 const submitVoteWithLimit = async <T extends BaseSubmission & Record<string, unknown>>(
   voteKey: VoteKey,
   payload: T
@@ -154,27 +147,39 @@ const submitVoteWithLimit = async <T extends BaseSubmission & Record<string, unk
   const counterRef = doc(db, "games_vote_counters", payload.entryId);
   const voteRef = doc(db, voteCollectionByKey[voteKey], payload.entryId);
 
-  await runTransaction(db, async (tx) => {
-    const counterSnap = await tx.get(counterRef);
-    const counterData = (counterSnap.exists()
-      ? (counterSnap.data() as Partial<VoteSubmissionStatus>)
-      : {}) as Partial<VoteSubmissionStatus>;
+  try {
+    await runTransaction(
+      db,
+      async (tx) => {
+        const counterSnap = await tx.get(counterRef);
+        const counterData = (counterSnap.exists()
+          ? (counterSnap.data() as Partial<VoteSubmissionStatus>)
+          : {}) as Partial<VoteSubmissionStatus>;
 
-    const currentCount = Number(counterData[voteKey] ?? 0);
-    if (currentCount >= MAX_VOTE_SUBMISSIONS_PER_CATEGORY) {
-      throw new Error("Vote change limit reached. You cannot change this vote anymore.");
+        const currentCount = Number(counterData[voteKey] ?? 0);
+        if (currentCount >= MAX_VOTE_SUBMISSIONS_PER_CATEGORY) {
+          throw new Error("Vote change limit reached. You cannot change this vote anymore.");
+        }
+
+        const nextCount = currentCount + 1;
+        tx.set(counterRef, {
+          [voteKey]: nextCount,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        tx.set(voteRef, withTimestamp({
+          ...payload,
+          submissionCount: nextCount,
+          changesUsed: Math.max(nextCount - 1, 0),
+        }));
+      },
+      { maxAttempts: TX_MAX_ATTEMPTS }
+    );
+  } catch (error) {
+    if (isResourceExhausted(error)) {
+      throw new Error("Too many requests right now. Please wait 15-30 seconds and try again.");
     }
 
-    const nextCount = currentCount + 1;
-    tx.set(counterRef, {
-      [voteKey]: nextCount,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
-    tx.set(voteRef, withTimestamp({
-      ...payload,
-      submissionCount: nextCount,
-      changesUsed: Math.max(nextCount - 1, 0),
-    }));
-  });
+    throw error;
+  }
 };
