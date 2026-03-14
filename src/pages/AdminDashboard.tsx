@@ -77,6 +77,14 @@ interface ActivityLog {
   timestamp?: { toDate?: () => Date };
 }
 
+interface DeviceSummary {
+  deviceId: string;
+  accounts: string[];
+  names: string[];
+  accountPairs: Array<{ entryId: string; name: string }>;
+  events: number;
+}
+
 const nominationCategoryLabels: Record<string, string> = {
   most_popular_male: "Most Popular Male",
   most_popular_female: "Most Popular Female",
@@ -198,19 +206,22 @@ export default function AdminDashboard(): JSX.Element {
   const recentSuggestions = useMemo(() => suggestions.slice(0, 4), [suggestions]);
 
   const suspiciousDevices = useMemo(() => {
-    const deviceMap = new Map<string, { entryIds: Set<string>; names: Set<string>; events: number }>();
+    const deviceMap = new Map<string, { entryIds: Set<string>; names: Set<string>; accountPairs: Map<string, string>; events: number }>();
 
     activityLogs.forEach((log: ActivityLog) => {
       const deviceId = log.deviceId ?? "unknown-device";
       const found = deviceMap.get(deviceId) ?? {
         entryIds: new Set<string>(),
         names: new Set<string>(),
+        accountPairs: new Map<string, string>(),
         events: 0
       };
 
-      if (log.entryId && entryNameMap[log.entryId]) {
+      if (log.entryId) {
+        const resolvedName = entryNameMap[log.entryId] ?? log.name ?? log.entryId;
         found.entryIds.add(log.entryId);
-        found.names.add(entryNameMap[log.entryId]);
+        found.names.add(resolvedName);
+        found.accountPairs.set(log.entryId, resolvedName);
       }
       found.events += 1;
       deviceMap.set(deviceId, found);
@@ -221,26 +232,30 @@ export default function AdminDashboard(): JSX.Element {
         deviceId,
         accounts: Array.from(data.entryIds),
         names: Array.from(data.names),
+        accountPairs: Array.from(data.accountPairs.entries()).map(([entryId, name]) => ({ entryId, name })),
         events: data.events
-      }))
+      }) as DeviceSummary)
       .filter((d) => d.accounts.length > 1)
       .sort((a, b) => b.accounts.length - a.accounts.length || b.events - a.events);
   }, [activityLogs, entryNameMap]);
 
   const allDevices = useMemo(() => {
-    const deviceMap = new Map<string, { entryIds: Set<string>; names: Set<string>; events: number }>();
+    const deviceMap = new Map<string, { entryIds: Set<string>; names: Set<string>; accountPairs: Map<string, string>; events: number }>();
 
     activityLogs.forEach((log: ActivityLog) => {
       const deviceId = log.deviceId ?? "unknown-device";
       const found = deviceMap.get(deviceId) ?? {
         entryIds: new Set<string>(),
         names: new Set<string>(),
+        accountPairs: new Map<string, string>(),
         events: 0
       };
 
-      if (log.entryId && entryNameMap[log.entryId]) {
+      if (log.entryId) {
+        const resolvedName = entryNameMap[log.entryId] ?? log.name ?? log.entryId;
         found.entryIds.add(log.entryId);
-        found.names.add(entryNameMap[log.entryId]);
+        found.names.add(resolvedName);
+        found.accountPairs.set(log.entryId, resolvedName);
       }
       found.events += 1;
       deviceMap.set(deviceId, found);
@@ -251,8 +266,9 @@ export default function AdminDashboard(): JSX.Element {
         deviceId,
         accounts: Array.from(data.entryIds),
         names: Array.from(data.names),
+        accountPairs: Array.from(data.accountPairs.entries()).map(([entryId, name]) => ({ entryId, name })),
         events: data.events
-      }))
+      }) as DeviceSummary)
       .sort((a, b) => b.events - a.events);
   }, [activityLogs, entryNameMap]);
 
@@ -1205,18 +1221,20 @@ export default function AdminDashboard(): JSX.Element {
                       <td style={td}>{shortDevice(device.deviceId)}</td>
                       <td style={td}>
                         <div style={chipWrap}>
-                          {device.accounts.map((entryId) => (
+                          {device.accountPairs.map((item) => (
                             <button
-                              key={entryId}
-                              style={blockBtn(blockedEntryIds.has(entryId))}
+                              key={item.entryId}
+                              style={blockBtn(blockedEntryIds.has(item.entryId))}
                               onClick={() =>
                                 handleToggleEntryBlock(
-                                  entryId,
-                                  device.names.find((n) => n)
+                                  item.entryId,
+                                  item.name
                                 )
                               }
                             >
-                              {blockedEntryIds.has(entryId) ? `Unblock ${entryId}` : `Block ${entryId}`}
+                              {blockedEntryIds.has(item.entryId)
+                                ? `Unblock ${item.entryId}`
+                                : `Block ${item.entryId}`}
                             </button>
                           ))}
                         </div>
