@@ -1780,28 +1780,32 @@ export default function AdminDashboard(): JSX.Element {
               <button style={csvBtn} onClick={handleAddAdmin}>Add Admin</button>
             </div>
 
-            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-              <div style={miniPanel}>
-                <div style={{ ...rowCompact, borderBottom: "none", paddingBottom: 0 }}>
-                  <strong>{entryNameMap[SUPER_ADMIN_ENTRY_ID] ?? "Super Admin"}</strong> ({SUPER_ADMIN_ENTRY_ID}) • super_admin
+            <div style={adminAccessList}>
+              <div style={adminAccessRow}>
+                <div style={{ display: "grid", gap: 2 }}>
+                  <span style={adminNameText}>
+                    {entryNameMap[SUPER_ADMIN_ENTRY_ID] ?? "Super Admin"} ({SUPER_ADMIN_ENTRY_ID})
+                  </span>
                 </div>
+                <span style={rolePillSuper}>Super Admin</span>
               </div>
               {adminRoles
                 .filter((r) => (r.entryId ?? "") !== SUPER_ADMIN_ENTRY_ID)
                 .map((admin) => (
-                  <div key={admin.id} style={{ ...miniPanel, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                    <div>
-                      <div style={rowCompact}>
-                        <strong>{entryNameMap[admin.entryId ?? ""] ?? admin.entryId ?? "-"}</strong> ({admin.entryId ?? "-"}) • admin
-                      </div>
-                    </div>
-                    <button style={smallBtn} onClick={() => handleRemoveAdmin(admin.entryId ?? "")}>
+                  <div key={admin.id} style={adminAccessRow}>
+                    <span style={adminNameText}>
+                      {entryNameMap[admin.entryId ?? ""] ?? admin.entryId ?? "-"} ({admin.entryId ?? "-"})
+                    </span>
+                    <div style={controls}>
+                      <span style={rolePillAdmin}>Admin</span>
+                      <button style={smallBtn} onClick={() => handleRemoveAdmin(admin.entryId ?? "")}>
                       Remove
-                    </button>
+                      </button>
+                    </div>
                   </div>
                 ))}
               {adminRoles.filter((r) => (r.entryId ?? "") !== SUPER_ADMIN_ENTRY_ID).length === 0 && (
-                <p style={mutedText}>No additional admins added yet.</p>
+                <p style={{ ...mutedText, marginTop: 4 }}>No additional admins added yet.</p>
               )}
             </div>
           </section>
@@ -2092,6 +2096,49 @@ const miniPanelTitle: CSSProperties = {
   margin: 0,
   color: "#ffd57a",
   fontSize: 14
+};
+
+const adminAccessList: CSSProperties = {
+  marginTop: 12,
+  display: "grid",
+  gap: 8
+};
+
+const adminAccessRow: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.03)",
+  padding: "10px 12px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10
+};
+
+const adminNameText: CSSProperties = {
+  color: "#eceff3",
+  fontSize: 14,
+  fontWeight: 600
+};
+
+const rolePillSuper: CSSProperties = {
+  border: "1px solid rgba(255,213,122,0.6)",
+  background: "rgba(255,213,122,0.15)",
+  color: "#ffd57a",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 11,
+  fontWeight: 700
+};
+
+const rolePillAdmin: CSSProperties = {
+  border: "1px solid rgba(124,196,255,0.6)",
+  background: "rgba(124,196,255,0.14)",
+  color: "#7cc4ff",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 11,
+  fontWeight: 700
 };
 
 const statRow: CSSProperties = {
