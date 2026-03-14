@@ -90,27 +90,48 @@ export default function AdminLayout({
         </nav>
       </aside>
 
-      <main style={{ ...content, ...(isDesktop ? contentDesktop : {}) }}>
-        <header style={topBar}>
+      <main style={{ ...content, ...(isDesktop ? contentDesktop : contentMobile) }}>
+        <header style={{ ...topBar, ...(isDesktop ? {} : topBarMobile) }}>
           <div>
-            <h1 style={pageTitle}>{title}</h1>
-            <p style={pageSubtitle}>{subtitle}</p>
+            <h1 style={{ ...pageTitle, ...(isDesktop ? {} : pageTitleMobile) }}>{title}</h1>
+            <p style={{ ...pageSubtitle, ...(isDesktop ? {} : pageSubtitleMobile) }}>{subtitle}</p>
           </div>
 
-          <div style={topActions}>
+          <div style={{ ...topActions, ...(isDesktop ? {} : topActionsMobile) }}>
             <button
               onClick={() => setOpenSidebar(true)}
-              style={{ ...menuButton, ...(isDesktop ? menuButtonHidden : {}) }}
+              style={{
+                ...menuButton,
+                ...(isDesktop ? menuButtonHidden : {}),
+                ...(isDesktop ? {} : menuButtonMobile)
+              }}
               aria-label="Open sidebar"
             >
-              Menu
+              Sections
             </button>
 
-            <button onClick={onLogout} style={logoutBtn}>
+            <button onClick={onLogout} style={{ ...logoutBtn, ...(isDesktop ? {} : logoutBtnMobile) }}>
               Logout
             </button>
           </div>
         </header>
+
+        {!isDesktop && (
+          <nav style={mobileTabs} aria-label="Admin sections">
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => selectSection(item.key)}
+                style={{
+                  ...mobileTab,
+                  ...(activeSection === item.key ? mobileTabActive : {})
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {children}
       </main>
@@ -193,6 +214,10 @@ const content: CSSProperties = {
   padding: 20
 };
 
+const contentMobile: CSSProperties = {
+  padding: 14
+};
+
 const contentDesktop: CSSProperties = {
   marginLeft: 260
 };
@@ -209,10 +234,27 @@ const topBar: CSSProperties = {
   background: "rgba(255,255,255,0.03)"
 };
 
+const topBarMobile: CSSProperties = {
+  position: "sticky",
+  top: 10,
+  zIndex: 20,
+  marginBottom: 12,
+  padding: "12px 12px 10px",
+  borderRadius: 12,
+  backdropFilter: "blur(8px)",
+  alignItems: "flex-start"
+};
+
 const topActions: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10
+};
+
+const topActionsMobile: CSSProperties = {
+  width: "100%",
+  justifyContent: "space-between",
+  marginTop: 6
 };
 
 const menuButton: CSSProperties = {
@@ -229,6 +271,13 @@ const menuButtonHidden: CSSProperties = {
   display: "none"
 };
 
+const menuButtonMobile: CSSProperties = {
+  padding: "8px 11px",
+  fontSize: 12,
+  borderColor: "rgba(245,176,0,0.4)",
+  color: "#ffd57a"
+};
+
 const logoutBtn: CSSProperties = {
   padding: "9px 14px",
   borderRadius: 8,
@@ -239,13 +288,55 @@ const logoutBtn: CSSProperties = {
   fontWeight: 700
 };
 
+const logoutBtnMobile: CSSProperties = {
+  padding: "8px 11px",
+  fontSize: 12,
+  borderRadius: 9
+};
+
 const pageTitle: CSSProperties = {
   margin: 0,
   fontSize: 22
+};
+
+const pageTitleMobile: CSSProperties = {
+  fontSize: 17
 };
 
 const pageSubtitle: CSSProperties = {
   margin: "4px 0 0",
   color: "#bbb",
   fontSize: 13
+};
+
+const pageSubtitleMobile: CSSProperties = {
+  fontSize: 11
+};
+
+const mobileTabs: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  overflowX: "auto",
+  paddingBottom: 8,
+  marginBottom: 14
+};
+
+const mobileTab: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.15)",
+  background: "rgba(255,255,255,0.03)",
+  color: "#d8d8d8",
+  borderRadius: 999,
+  padding: "8px 12px",
+  cursor: "pointer",
+  fontWeight: 700,
+  fontSize: 12,
+  whiteSpace: "nowrap",
+  flexShrink: 0
+};
+
+const mobileTabActive: CSSProperties = {
+  color: "#1d1300",
+  borderColor: "rgba(245,176,0,0.85)",
+  background: "linear-gradient(135deg, #ffd57a 0%, #f5b000 100%)",
+  boxShadow: "0 8px 18px rgba(245,176,0,0.25)"
 };

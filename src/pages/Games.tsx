@@ -35,6 +35,7 @@ import { useDeviceType } from "@/hooks/useDeviceType";
 import {
   GAMES_EVENT_NAME,
   type NominationCategory,
+  type VoteSubmissionStatus,
   getVoteSubmissionStatus,
   hasSubmittedSelfNominations,
   submitBfdVote,
@@ -54,24 +55,18 @@ type GuestOption = {
   gender: string;
 };
 
-type VoteStatus = {
-  cys: boolean;
-  mpm: boolean;
-  mpf: boolean;
-  bmd: boolean;
-  bfd: boolean;
-  swdbitp: boolean;
-};
+type VoteKey = keyof VoteSubmissionStatus;
 
-type VoteKey = keyof VoteStatus;
+const MAX_SUBMISSIONS_PER_CATEGORY = 3;
+const MAX_CHANGES_PER_CATEGORY = 2;
 
-const initialVoteStatus: VoteStatus = {
-  cys: false,
-  mpm: false,
-  mpf: false,
-  bmd: false,
-  bfd: false,
-  swdbitp: false,
+const initialVoteSubmissionStatus: VoteSubmissionStatus = {
+  cys: 0,
+  mpm: 0,
+  mpf: 0,
+  bmd: 0,
+  bfd: 0,
+  swdbitp: 0,
 };
 
 const nominationCategories: Array<{
@@ -106,6 +101,15 @@ const normalizeGender = (value?: string) => value?.toLowerCase().trim();
 
 const sortByName = (a: GuestOption, b: GuestOption) =>
   a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+
+const voteLabelMap: Record<VoteKey, string> = {
+  cys: "A Couple You Ship",
+  mpm: "Most Popular Male",
+  mpf: "Most Popular Female",
+  bmd: "Best Male Duo",
+  bfd: "Best Female Duo",
+  swdbitp: "Someone Who Doesn't Belong",
+};
 
 const SearchableNameSelect = ({
   title,
@@ -193,7 +197,7 @@ const Games = () => {
 
   const [isLoadingState, setIsLoadingState] = useState(true);
   const [selfSubmitted, setSelfSubmitted] = useState(false);
-  const [voteStatus, setVoteStatus] = useState<VoteStatus>(initialVoteStatus);
+  const [voteCounts, setVoteCounts] = useState<VoteSubmissionStatus>(initialVoteSubmissionStatus);
 
   const [selectedCategories, setSelectedCategories] = useState<NominationCategory[]>([]);
   const [isSelfSubmitting, setIsSelfSubmitting] = useState(false);
@@ -232,7 +236,7 @@ const Games = () => {
           getVoteSubmissionStatus(user.entryId),
         ]);
         setSelfSubmitted(self);
-        setVoteStatus(votes);
+        setVoteCounts(votes);
       } catch (err) {
         toast.error(getSubmitErrorMessage(err, "Failed to load games data"));
       } finally {
@@ -327,7 +331,24 @@ const Games = () => {
   };
 
   const markVoteSubmitted = (key: VoteKey) => {
-    setVoteStatus((prev) => ({ ...prev, [key]: true }));
+    setVoteCounts((prev) => ({
+      ...prev,
+      [key]: Math.min((prev[key] ?? 0) + 1, MAX_SUBMISSIONS_PER_CATEGORY),
+    }));
+  };
+
+  const canSubmitVote = (key: VoteKey) => (voteCounts[key] ?? 0) < MAX_SUBMISSIONS_PER_CATEGORY;
+
+  const getChangesLeft = (key: VoteKey) => {
+    const submissionsUsed = voteCounts[key] ?? 0;
+    const changesUsed = Math.max(submissionsUsed - 1, 0);
+    return Math.max(MAX_CHANGES_PER_CATEGORY - changesUsed, 0);
+  };
+
+  const getSubmitButtonLabel = (key: VoteKey, submittingText: string, defaultText: string, isSubmitting: boolean) => {
+    if (isSubmitting) return submittingText;
+    if (!canSubmitVote(key)) return "Limit reached";
+    return defaultText;
   };
 
   const handleCysSubmit = async () => {
@@ -518,11 +539,29 @@ const Games = () => {
 
         <PremiumHeading
           title="Games"
-          subtitle="Nominate yourself and vote once per category"
+          subtitle="Nominate yourself and vote with up to 2 changes per category"
           variant={getVariant()}
         />
 
         <div className="max-w-4xl mx-auto space-y-8 pb-24">
+          <Card className="border border-red-500/40 bg-red-950/40">
+            <CardContent className="p-4 md:p-5">
+              <div className="rounded-xl border border-red-400/60 bg-black/40 px-4 py-3">
+                <p className="text-red-200 text-sm md:text-base font-semibold">
+                  Vote change tracker: You can submit each vote once and change it 2 more times (total 3 submissions per category).
+                </p>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs md:text-sm">
+                  {(Object.keys(voteLabelMap) as VoteKey[]).map((key) => (
+                    <div key={key} className="rounded-md border border-red-300/30 bg-red-900/20 px-3 py-2 text-red-100">
+                      <span className="font-medium">{voteLabelMap[key]}:</span>{" "}
+                      <span>Vote changes left {getChangesLeft(key)} / {MAX_CHANGES_PER_CATEGORY}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="card-shimmer border border-gold/20">
             <CardContent className="p-5 md:p-6 space-y-5">
               <div className="flex items-center gap-3">
@@ -588,7 +627,7 @@ const Games = () => {
                 <div>
                   <h3 className="text-xl font-display text-gold">Section 2: Vote for Others</h3>
                   <p className="text-champagne/70 text-sm">
-                    Search and select nominees. No self-voting, no resubmit.
+                    Search and select nominees. You can submit once and change each vote 2 more times.
                   </p>
                 </div>
               </div>
@@ -606,7 +645,7 @@ const Games = () => {
                       options={maleGuestsWithoutSelf}
                       value={cysMale}
                       onChange={setCysMale}
-                      disabled={voteStatus.cys}
+                      disabled={!canSubmitVote("cys")}
                     />
                     <SearchableNameSelect
                       title="Female"
@@ -614,15 +653,15 @@ const Games = () => {
                       options={femaleGuestsWithoutSelf}
                       value={cysFemale}
                       onChange={setCysFemale}
-                      disabled={voteStatus.cys}
+                      disabled={!canSubmitVote("cys")}
                     />
                     <Button
                       type="button"
-                      disabled={voteStatus.cys || isCysSubmitting}
+                      disabled={!canSubmitVote("cys") || isCysSubmitting}
                       onClick={handleCysSubmit}
                       className="w-full"
                     >
-                      {voteStatus.cys ? "Already submitted" : isCysSubmitting ? "Submitting..." : "Submit CYS Vote"}
+                      {getSubmitButtonLabel("cys", "Submitting...", "Submit CYS Vote", isCysSubmitting)}
                     </Button>
                   </CardContent>
                 </Card>
@@ -639,11 +678,11 @@ const Games = () => {
                       options={maleGuestsWithoutSelf}
                       value={mpmNominee}
                       onChange={setMpmNominee}
-                      disabled={voteStatus.mpm}
+                      disabled={!canSubmitVote("mpm")}
                     />
                     <Button
                       type="button"
-                      disabled={voteStatus.mpm || isMpmSubmitting}
+                      disabled={!canSubmitVote("mpm") || isMpmSubmitting}
                       onClick={() =>
                         void handleSingleVoteSubmit(
                           "mpm",
@@ -655,7 +694,7 @@ const Games = () => {
                       }
                       className="w-full"
                     >
-                      {voteStatus.mpm ? "Already submitted" : isMpmSubmitting ? "Submitting..." : "Submit MPM Vote"}
+                      {getSubmitButtonLabel("mpm", "Submitting...", "Submit MPM Vote", isMpmSubmitting)}
                     </Button>
                   </CardContent>
                 </Card>
@@ -672,11 +711,11 @@ const Games = () => {
                       options={femaleGuestsWithoutSelf}
                       value={mpfNominee}
                       onChange={setMpfNominee}
-                      disabled={voteStatus.mpf}
+                      disabled={!canSubmitVote("mpf")}
                     />
                     <Button
                       type="button"
-                      disabled={voteStatus.mpf || isMpfSubmitting}
+                      disabled={!canSubmitVote("mpf") || isMpfSubmitting}
                       onClick={() =>
                         void handleSingleVoteSubmit(
                           "mpf",
@@ -688,7 +727,7 @@ const Games = () => {
                       }
                       className="w-full"
                     >
-                      {voteStatus.mpf ? "Already submitted" : isMpfSubmitting ? "Submitting..." : "Submit MPF Vote"}
+                      {getSubmitButtonLabel("mpf", "Submitting...", "Submit MPF Vote", isMpfSubmitting)}
                     </Button>
                   </CardContent>
                 </Card>
@@ -702,28 +741,28 @@ const Games = () => {
                     <SearchableNameSelect
                       title="Male 1"
                       placeholder="Select first male"
-                      options={maleGuestsWithoutSelf}
+                      options={maleGuests}
                       value={bmdMale1}
                       onChange={setBmdMale1}
-                      disabled={voteStatus.bmd}
+                      disabled={!canSubmitVote("bmd")}
                       excludeEntryIds={[bmdMale2]}
                     />
                     <SearchableNameSelect
                       title="Male 2"
                       placeholder="Select second male"
-                      options={maleGuestsWithoutSelf}
+                      options={maleGuests}
                       value={bmdMale2}
                       onChange={setBmdMale2}
-                      disabled={voteStatus.bmd}
+                      disabled={!canSubmitVote("bmd")}
                       excludeEntryIds={[bmdMale1]}
                     />
                     <Button
                       type="button"
-                      disabled={voteStatus.bmd || isBmdSubmitting}
+                      disabled={!canSubmitVote("bmd") || isBmdSubmitting}
                       onClick={handleBmdSubmit}
                       className="w-full"
                     >
-                      {voteStatus.bmd ? "Already submitted" : isBmdSubmitting ? "Submitting..." : "Submit BMD Vote"}
+                      {getSubmitButtonLabel("bmd", "Submitting...", "Submit BMD Vote", isBmdSubmitting)}
                     </Button>
                   </CardContent>
                 </Card>
@@ -737,28 +776,28 @@ const Games = () => {
                     <SearchableNameSelect
                       title="Female 1"
                       placeholder="Select first female"
-                      options={femaleGuestsWithoutSelf}
+                      options={femaleGuests}
                       value={bfdFemale1}
                       onChange={setBfdFemale1}
-                      disabled={voteStatus.bfd}
+                      disabled={!canSubmitVote("bfd")}
                       excludeEntryIds={[bfdFemale2]}
                     />
                     <SearchableNameSelect
                       title="Female 2"
                       placeholder="Select second female"
-                      options={femaleGuestsWithoutSelf}
+                      options={femaleGuests}
                       value={bfdFemale2}
                       onChange={setBfdFemale2}
-                      disabled={voteStatus.bfd}
+                      disabled={!canSubmitVote("bfd")}
                       excludeEntryIds={[bfdFemale1]}
                     />
                     <Button
                       type="button"
-                      disabled={voteStatus.bfd || isBfdSubmitting}
+                      disabled={!canSubmitVote("bfd") || isBfdSubmitting}
                       onClick={handleBfdSubmit}
                       className="w-full"
                     >
-                      {voteStatus.bfd ? "Already submitted" : isBfdSubmitting ? "Submitting..." : "Submit BFD Vote"}
+                      {getSubmitButtonLabel("bfd", "Submitting...", "Submit BFD Vote", isBfdSubmitting)}
                     </Button>
                   </CardContent>
                 </Card>
@@ -775,11 +814,11 @@ const Games = () => {
                       options={allGuestsWithoutSelf}
                       value={swdbitpNominee}
                       onChange={setSwdbitpNominee}
-                      disabled={voteStatus.swdbitp}
+                      disabled={!canSubmitVote("swdbitp")}
                     />
                     <Button
                       type="button"
-                      disabled={voteStatus.swdbitp || isSwdbitpSubmitting}
+                      disabled={!canSubmitVote("swdbitp") || isSwdbitpSubmitting}
                       onClick={() =>
                         void handleSingleVoteSubmit(
                           "swdbitp",
@@ -791,11 +830,7 @@ const Games = () => {
                       }
                       className="w-full"
                     >
-                      {voteStatus.swdbitp
-                        ? "Already submitted"
-                        : isSwdbitpSubmitting
-                        ? "Submitting..."
-                        : "Submit SWDBITP Vote"}
+                      {getSubmitButtonLabel("swdbitp", "Submitting...", "Submit SWDBITP Vote", isSwdbitpSubmitting)}
                     </Button>
                   </CardContent>
                 </Card>

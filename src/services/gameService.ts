@@ -1,6 +1,7 @@
 import {
   doc,
   getDoc,
+  runTransaction,
   serverTimestamp,
   setDoc,
   type FieldValue,
@@ -20,6 +21,21 @@ type BaseSubmission = {
   eventName: string;
   entryId: string;
   name: string;
+};
+
+export type VoteKey = "cys" | "mpm" | "mpf" | "bmd" | "bfd" | "swdbitp";
+
+export type VoteSubmissionStatus = Record<VoteKey, number>;
+
+const MAX_VOTE_SUBMISSIONS_PER_CATEGORY = 3;
+
+const voteCollectionByKey: Record<VoteKey, string> = {
+  cys: "cys_votes",
+  mpm: "mpm_votes",
+  mpf: "mpf_votes",
+  bmd: "bmd_votes",
+  bfd: "bfd_votes",
+  swdbitp: "swdbitp_votes",
 };
 
 const withTimestamp = <T extends Record<string, unknown>>(payload: T) => ({
@@ -49,19 +65,19 @@ export const submitCysVote = async (
     femaleEntryId: string;
   }
 ) => {
-  await setDoc(doc(db, "cys_votes", payload.entryId), withTimestamp(payload));
+  await submitVoteWithLimit("cys", payload);
 };
 
 export const submitMpmVote = async (
   payload: BaseSubmission & { nomineeName: string; nomineeEntryId: string }
 ) => {
-  await setDoc(doc(db, "mpm_votes", payload.entryId), withTimestamp(payload));
+  await submitVoteWithLimit("mpm", payload);
 };
 
 export const submitMpfVote = async (
   payload: BaseSubmission & { nomineeName: string; nomineeEntryId: string }
 ) => {
-  await setDoc(doc(db, "mpf_votes", payload.entryId), withTimestamp(payload));
+  await submitVoteWithLimit("mpf", payload);
 };
 
 export const submitBmdVote = async (
@@ -72,7 +88,7 @@ export const submitBmdVote = async (
     male2EntryId: string;
   }
 ) => {
-  await setDoc(doc(db, "bmd_votes", payload.entryId), withTimestamp(payload));
+  await submitVoteWithLimit("bmd", payload);
 };
 
 export const submitBfdVote = async (
@@ -83,16 +99,47 @@ export const submitBfdVote = async (
     female2EntryId: string;
   }
 ) => {
-  await setDoc(doc(db, "bfd_votes", payload.entryId), withTimestamp(payload));
+  await submitVoteWithLimit("bfd", payload);
 };
 
 export const submitSwdbitpVote = async (
   payload: BaseSubmission & { nomineeName: string; nomineeEntryId: string }
 ) => {
-  await setDoc(
-    doc(db, "swdbitp_votes", payload.entryId),
-    withTimestamp(payload)
-  );
+  await submitVoteWithLimit("swdbitp", payload);
+};
+
+export const getVoteSubmissionStatus = async (entryId: string) => {
+  const counterSnap = await getDoc(doc(db, "games_vote_counters", entryId));
+  if (!counterSnap.exists()) {
+    const [cys, mpm, mpf, bmd, bfd, swdbitp] = await Promise.all([
+      hasSubmitted(voteCollectionByKey.cys, entryId),
+      hasSubmitted(voteCollectionByKey.mpm, entryId),
+      hasSubmitted(voteCollectionByKey.mpf, entryId),
+      hasSubmitted(voteCollectionByKey.bmd, entryId),
+      hasSubmitted(voteCollectionByKey.bfd, entryId),
+      hasSubmitted(voteCollectionByKey.swdbitp, entryId),
+    ]);
+
+    return {
+      cys: cys ? 1 : 0,
+      mpm: mpm ? 1 : 0,
+      mpf: mpf ? 1 : 0,
+      bmd: bmd ? 1 : 0,
+      bfd: bfd ? 1 : 0,
+      swdbitp: swdbitp ? 1 : 0,
+    };
+  }
+
+  const data = counterSnap.data() as Partial<VoteSubmissionStatus>;
+
+  return {
+    cys: Math.min(Number(data.cys ?? 0), MAX_VOTE_SUBMISSIONS_PER_CATEGORY),
+    mpm: Math.min(Number(data.mpm ?? 0), MAX_VOTE_SUBMISSIONS_PER_CATEGORY),
+    mpf: Math.min(Number(data.mpf ?? 0), MAX_VOTE_SUBMISSIONS_PER_CATEGORY),
+    bmd: Math.min(Number(data.bmd ?? 0), MAX_VOTE_SUBMISSIONS_PER_CATEGORY),
+    bfd: Math.min(Number(data.bfd ?? 0), MAX_VOTE_SUBMISSIONS_PER_CATEGORY),
+    swdbitp: Math.min(Number(data.swdbitp ?? 0), MAX_VOTE_SUBMISSIONS_PER_CATEGORY),
+  };
 };
 
 const hasSubmitted = async (collectionName: string, entryId: string) => {
@@ -100,15 +147,34 @@ const hasSubmitted = async (collectionName: string, entryId: string) => {
   return snap.exists();
 };
 
-export const getVoteSubmissionStatus = async (entryId: string) => {
-  const [cys, mpm, mpf, bmd, bfd, swdbitp] = await Promise.all([
-    hasSubmitted("cys_votes", entryId),
-    hasSubmitted("mpm_votes", entryId),
-    hasSubmitted("mpf_votes", entryId),
-    hasSubmitted("bmd_votes", entryId),
-    hasSubmitted("bfd_votes", entryId),
-    hasSubmitted("swdbitp_votes", entryId),
-  ]);
+const submitVoteWithLimit = async <T extends BaseSubmission & Record<string, unknown>>(
+  voteKey: VoteKey,
+  payload: T
+) => {
+  const counterRef = doc(db, "games_vote_counters", payload.entryId);
+  const voteRef = doc(db, voteCollectionByKey[voteKey], payload.entryId);
 
-  return { cys, mpm, mpf, bmd, bfd, swdbitp };
+  await runTransaction(db, async (tx) => {
+    const counterSnap = await tx.get(counterRef);
+    const counterData = (counterSnap.exists()
+      ? (counterSnap.data() as Partial<VoteSubmissionStatus>)
+      : {}) as Partial<VoteSubmissionStatus>;
+
+    const currentCount = Number(counterData[voteKey] ?? 0);
+    if (currentCount >= MAX_VOTE_SUBMISSIONS_PER_CATEGORY) {
+      throw new Error("Vote change limit reached. You cannot change this vote anymore.");
+    }
+
+    const nextCount = currentCount + 1;
+    tx.set(counterRef, {
+      [voteKey]: nextCount,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    tx.set(voteRef, withTimestamp({
+      ...payload,
+      submissionCount: nextCount,
+      changesUsed: Math.max(nextCount - 1, 0),
+    }));
+  });
 };

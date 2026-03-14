@@ -25,6 +25,13 @@ import {
   unblockDevice,
   unblockEntry
 } from "@/services/blockService";
+import {
+  DEFAULT_WARNING_MESSAGE,
+  clearGuestWarning,
+  sendGuestWarning,
+  subscribeGuestWarnings,
+  type GuestWarningRecord
+} from "@/services/warningService";
 import { toast } from "sonner";
 import {
   addDoc,
@@ -186,6 +193,7 @@ export default function AdminDashboard(): JSX.Element {
   const [password, setPassword] = useState<string>("");
   const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
   const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
+  const [guestWarnings, setGuestWarnings] = useState<Map<string, GuestWarningRecord>>(new Map());
   const [gamesView, setGamesView] = useState<"analytics" | "tables">("analytics");
   const [gamesCategoryFilter, setGamesCategoryFilter] = useState<"all" | GameCategory>("all");
   const [gamesSearch, setGamesSearch] = useState("");
@@ -574,10 +582,12 @@ export default function AdminDashboard(): JSX.Element {
   useEffect(() => {
     const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
     const unsubDevices = subscribeBlockedDevices(setBlockedDeviceIds);
+    const unsubWarnings = subscribeGuestWarnings(setGuestWarnings);
 
     return () => {
       unsubEntries();
       unsubDevices();
+      unsubWarnings();
     };
   }, []);
 
@@ -683,6 +693,68 @@ export default function AdminDashboard(): JSX.Element {
       console.error(error);
       toast.error("Failed to update account block status");
     }
+  };
+
+  const handleSendWarning = async (entryId: string, name?: string) => {
+    if (!isSuperAdmin) return;
+    try {
+      await sendGuestWarning({
+        entryId,
+        name,
+        sentBy: currentEntryId || ADMIN_ACTOR,
+        message: DEFAULT_WARNING_MESSAGE,
+      });
+      void logAdminAction("guest_warning_sent", `entryId=${entryId}`);
+      toast.success(`Warning sent to ${entryId}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to send warning");
+    }
+  };
+
+  const handleClearWarning = async (entryId: string) => {
+    if (!isSuperAdmin) return;
+    try {
+      await clearGuestWarning({ entryId, acknowledgedByEntryId: currentEntryId || ADMIN_ACTOR });
+      void logAdminAction("guest_warning_cleared", `entryId=${entryId}`);
+      toast.success(`Warning cleared for ${entryId}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to clear warning");
+    }
+  };
+
+  const renderGuestModerationControls = (entryId: string, name?: string) => {
+    const warning = guestWarnings.get(entryId);
+    const warningCount = Number(warning?.warningCount ?? 0);
+    const hasActiveWarning = !!warning?.isActive;
+
+    return (
+      <div style={controls}>
+        <button
+          style={blockBtn(blockedEntryIds.has(entryId))}
+          onClick={() => handleToggleEntryBlock(entryId, name)}
+        >
+          {blockedEntryIds.has(entryId) ? "Unblock Account" : "Block Account"}
+        </button>
+        <button
+          style={warnBtn(hasActiveWarning)}
+          onClick={() => handleSendWarning(entryId, name)}
+        >
+          Send Warning
+        </button>
+        <button
+          style={clearWarnBtn}
+          onClick={() => handleClearWarning(entryId)}
+          disabled={!hasActiveWarning}
+        >
+          Clear Warning
+        </button>
+        <span style={badge(hasActiveWarning ? "#ff6b6b" : "#7f8a96")}>
+          Warnings: {warningCount}
+        </span>
+      </div>
+    );
   };
 
   const handleDeleteSong = async (songId: string) => {
@@ -1211,16 +1283,7 @@ export default function AdminDashboard(): JSX.Element {
                     <td style={td}>{log.entryId ?? "-"}</td>
                     <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
                     <td style={td}>
-                      <div style={controls}>
-                        {log.entryId && (
-                          <button
-                            style={blockBtn(blockedEntryIds.has(log.entryId))}
-                            onClick={() => handleToggleEntryBlock(log.entryId as string, log.name)}
-                          >
-                            {blockedEntryIds.has(log.entryId) ? "Unblock Account" : "Block Account"}
-                          </button>
-                        )}
-                      </div>
+                      {log.entryId ? renderGuestModerationControls(log.entryId, log.name) : "-"}
                     </td>
                   </tr>
                 ))}
@@ -1282,14 +1345,7 @@ export default function AdminDashboard(): JSX.Element {
                     <td style={td}>{log.details || "-"}</td>
                     <td style={td}>
                       <div style={controls}>
-                        {log.entryId && (
-                          <button
-                            style={blockBtn(blockedEntryIds.has(log.entryId))}
-                            onClick={() => handleToggleEntryBlock(log.entryId as string, log.name)}
-                          >
-                            {blockedEntryIds.has(log.entryId) ? "Unblock Account" : "Block Account"}
-                          </button>
-                        )}
+                        {log.entryId && renderGuestModerationControls(log.entryId, log.name)}
                         {log.deviceId && (
                           <button
                             style={blockBtn(blockedDeviceIds.has(log.deviceId))}
@@ -1333,20 +1389,9 @@ export default function AdminDashboard(): JSX.Element {
                       <td style={td}>
                         <div style={chipWrap}>
                           {device.accountPairs.map((item) => (
-                            <button
-                              key={item.entryId}
-                              style={blockBtn(blockedEntryIds.has(item.entryId))}
-                              onClick={() =>
-                                handleToggleEntryBlock(
-                                  item.entryId,
-                                  item.name
-                                )
-                              }
-                            >
-                              {blockedEntryIds.has(item.entryId)
-                                ? `Unblock ${item.entryId}`
-                                : `Block ${item.entryId}`}
-                            </button>
+                            <div key={item.entryId}>
+                              {renderGuestModerationControls(item.entryId, item.name)}
+                            </div>
                           ))}
                         </div>
                       </td>
@@ -2414,6 +2459,28 @@ const blockBtn = (blocked: boolean): CSSProperties => ({
   background: blocked ? "#2f7d32" : "#ff4d4f",
   color: "#fff"
 });
+
+const warnBtn = (active: boolean): CSSProperties => ({
+  border: "none",
+  borderRadius: 7,
+  padding: "5px 9px",
+  cursor: "pointer",
+  fontSize: 11,
+  fontWeight: 700,
+  background: active ? "#8b1a1a" : "#ff8c42",
+  color: "#fff"
+});
+
+const clearWarnBtn: CSSProperties = {
+  border: "none",
+  borderRadius: 7,
+  padding: "5px 9px",
+  cursor: "pointer",
+  fontSize: 11,
+  fontWeight: 700,
+  background: "#3b82f6",
+  color: "#fff"
+};
 
 const badge = (color: string): CSSProperties => ({
   border: `1px solid ${color}`,
