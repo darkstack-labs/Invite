@@ -346,7 +346,7 @@ export default function AdminDashboard(): JSX.Element {
         categoryLabel: "A Couple You Ship",
         voterName: row?.name ?? "Unknown",
         voterEntryId: row?.entryId ?? "-",
-        selection: `${row?.maleName ?? "-"} + ${row?.femaleName ?? "-"}`,
+        selection: `${canonicalGuestName(row?.maleName, row?.maleEntryId, entryNameMap)} + ${canonicalGuestName(row?.femaleName, row?.femaleEntryId, entryNameMap)}`,
         submittedAtText: formatGameTime(row),
         submittedAtDate: getRecordDate(row)
       })
@@ -359,7 +359,7 @@ export default function AdminDashboard(): JSX.Element {
         categoryLabel: "Most Popular Male",
         voterName: row?.name ?? "Unknown",
         voterEntryId: row?.entryId ?? "-",
-        selection: row?.nomineeName ?? "-",
+        selection: canonicalGuestName(row?.nomineeName, row?.nomineeEntryId, entryNameMap),
         submittedAtText: formatGameTime(row),
         submittedAtDate: getRecordDate(row)
       })
@@ -372,7 +372,7 @@ export default function AdminDashboard(): JSX.Element {
         categoryLabel: "Most Popular Female",
         voterName: row?.name ?? "Unknown",
         voterEntryId: row?.entryId ?? "-",
-        selection: row?.nomineeName ?? "-",
+        selection: canonicalGuestName(row?.nomineeName, row?.nomineeEntryId, entryNameMap),
         submittedAtText: formatGameTime(row),
         submittedAtDate: getRecordDate(row)
       })
@@ -385,7 +385,13 @@ export default function AdminDashboard(): JSX.Element {
         categoryLabel: "Best Male Duo",
         voterName: row?.name ?? "Unknown",
         voterEntryId: row?.entryId ?? "-",
-        selection: `${row?.male1Name ?? "-"} + ${row?.male2Name ?? "-"}`,
+        selection: normalizeDuoPair(
+          row?.male1Name,
+          row?.male1EntryId,
+          row?.male2Name,
+          row?.male2EntryId,
+          entryNameMap
+        ),
         submittedAtText: formatGameTime(row),
         submittedAtDate: getRecordDate(row)
       })
@@ -398,7 +404,13 @@ export default function AdminDashboard(): JSX.Element {
         categoryLabel: "Best Female Duo",
         voterName: row?.name ?? "Unknown",
         voterEntryId: row?.entryId ?? "-",
-        selection: `${row?.female1Name ?? "-"} + ${row?.female2Name ?? "-"}`,
+        selection: normalizeDuoPair(
+          row?.female1Name,
+          row?.female1EntryId,
+          row?.female2Name,
+          row?.female2EntryId,
+          entryNameMap
+        ),
         submittedAtText: formatGameTime(row),
         submittedAtDate: getRecordDate(row)
       })
@@ -411,14 +423,14 @@ export default function AdminDashboard(): JSX.Element {
         categoryLabel: "Someone Who Doesn't Belong",
         voterName: row?.name ?? "Unknown",
         voterEntryId: row?.entryId ?? "-",
-        selection: row?.nomineeName ?? "-",
+        selection: canonicalGuestName(row?.nomineeName, row?.nomineeEntryId, entryNameMap),
         submittedAtText: formatGameTime(row),
         submittedAtDate: getRecordDate(row)
       })
     );
 
     return rows;
-  }, [selfNominations, cysVotes, mpmVotes, mpfVotes, bmdVotes, bfdVotes, swdbitpVotes]);
+  }, [selfNominations, cysVotes, mpmVotes, mpfVotes, bmdVotes, bfdVotes, swdbitpVotes, entryNameMap]);
 
   const filteredGameRows = useMemo(() => {
     const searchQuery = gamesSearch.trim().toLowerCase();
@@ -2521,6 +2533,39 @@ const formatGameTime = (record: { timestamp?: { toDate?: () => Date } }) => {
 const getRecordDate = (record: { timestamp?: { toDate?: () => Date } }) => {
   const dateFromTimestamp = record.timestamp?.toDate?.();
   return dateFromTimestamp instanceof Date ? dateFromTimestamp : null;
+};
+
+const canonicalGuestName = (
+  fallbackName: string | undefined,
+  entryId: string | undefined,
+  entryNameMap: Record<string, string>
+) => {
+  const byEntry = entryId ? entryNameMap[entryId] : undefined;
+  const trimmedFallback = (fallbackName ?? "").trim();
+  return byEntry || trimmedFallback || "-";
+};
+
+const normalizeDuoPair = (
+  name1?: string,
+  entryId1?: string,
+  name2?: string,
+  entryId2?: string,
+  entryNameMap?: Record<string, string>
+) => {
+  const left = {
+    name: canonicalGuestName(name1, entryId1, entryNameMap ?? {}),
+    entryId: entryId1 ?? "",
+  };
+  const right = {
+    name: canonicalGuestName(name2, entryId2, entryNameMap ?? {}),
+    entryId: entryId2 ?? "",
+  };
+  const pair = [left, right].sort((a, b) => {
+    const aKey = (a.entryId || a.name).toLowerCase();
+    const bKey = (b.entryId || b.name).toLowerCase();
+    return aKey.localeCompare(bKey);
+  });
+  return `${pair[0].name} + ${pair[1].name}`;
 };
 
 const toInputDate = (date: Date) => {
