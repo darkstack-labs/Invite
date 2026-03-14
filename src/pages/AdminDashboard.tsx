@@ -11,6 +11,13 @@ import useSuggestions from "../hooks/useSuggestions";
 import useActivityLogs from "../hooks/useActivityLogs";
 import useGamesAdminData from "../hooks/useGamesAdminData";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import {
   blockDevice,
   blockEntry,
   subscribeBlockedDevices,
@@ -1350,14 +1357,15 @@ export default function AdminDashboard(): JSX.Element {
               >
                 Detailed Tables
               </button>
-              <select
-                value={downloadFormat}
-                onChange={(e) => setDownloadFormat(e.target.value as "excel" | "pdf")}
-                style={{ ...themedSelect, width: 110 }}
-              >
-                <option value="excel">Excel</option>
-                <option value="pdf">PDF</option>
-              </select>
+              <Select value={downloadFormat} onValueChange={(v) => setDownloadFormat(v as "excel" | "pdf")}>
+                <SelectTrigger className="w-[110px] h-9 bg-black/40 border-gold/30 text-champagne">
+                  <SelectValue placeholder="Format" />
+                </SelectTrigger>
+                <SelectContent className="bg-black border-gold/30 text-champagne">
+                  <SelectItem value="excel">Excel</SelectItem>
+                  <SelectItem value="pdf">PDF</SelectItem>
+                </SelectContent>
+              </Select>
               <button style={csvBtn} onClick={handleDownloadFiltered}>Download</button>
             </div>
           </section>
@@ -1366,20 +1374,24 @@ export default function AdminDashboard(): JSX.Element {
             <div style={gamesFilterGrid}>
               <div style={filterCell}>
                 <label style={filterLabel}>Category</label>
-                <select
+                <Select
                   value={gamesCategoryFilter}
-                  onChange={(e) => setGamesCategoryFilter(e.target.value as "all" | GameCategory)}
-                  style={themedSelect}
+                  onValueChange={(v) => setGamesCategoryFilter(v as "all" | GameCategory)}
                 >
-                  <option value="all">All Categories</option>
-                  <option value="self">Self Nominations</option>
-                  <option value="cys">A Couple You Ship</option>
-                  <option value="mpm">Most Popular Male</option>
-                  <option value="mpf">Most Popular Female</option>
-                  <option value="bmd">Best Male Duo</option>
-                  <option value="bfd">Best Female Duo</option>
-                  <option value="swdbitp">Someone Who Doesn't Belong</option>
-                </select>
+                  <SelectTrigger className="h-10 bg-black/40 border-gold/30 text-champagne">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-gold/30 text-champagne">
+                    <SelectItem value="all">All Categories</SelectItem>
+                    <SelectItem value="self">Self Nominations</SelectItem>
+                    <SelectItem value="cys">A Couple You Ship</SelectItem>
+                    <SelectItem value="mpm">Most Popular Male</SelectItem>
+                    <SelectItem value="mpf">Most Popular Female</SelectItem>
+                    <SelectItem value="bmd">Best Male Duo</SelectItem>
+                    <SelectItem value="bfd">Best Female Duo</SelectItem>
+                    <SelectItem value="swdbitp">Someone Who Doesn't Belong</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div style={filterCell}>
@@ -1629,14 +1641,15 @@ export default function AdminDashboard(): JSX.Element {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <h3 style={{ ...panelTitle, marginBottom: 0 }}>{drilldown.title}</h3>
                   <div style={controls}>
-                    <select
-                      value={drillDownloadFormat}
-                      onChange={(e) => setDrillDownloadFormat(e.target.value as "excel" | "pdf")}
-                      style={{ ...themedSelect, width: 110 }}
-                    >
-                      <option value="excel">Excel</option>
-                      <option value="pdf">PDF</option>
-                    </select>
+                    <Select value={drillDownloadFormat} onValueChange={(v) => setDrillDownloadFormat(v as "excel" | "pdf")}>
+                      <SelectTrigger className="w-[110px] h-9 bg-black/40 border-gold/30 text-champagne">
+                        <SelectValue placeholder="Format" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-black border-gold/30 text-champagne">
+                        <SelectItem value="excel">Excel</SelectItem>
+                        <SelectItem value="pdf">PDF</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <button style={csvBtn} onClick={handleDownloadDrilldown}>Download</button>
                     <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
                   </div>
@@ -1719,14 +1732,15 @@ export default function AdminDashboard(): JSX.Element {
               <h3 style={panelTitle}>Download Center</h3>
               <p style={mutedText}>Export report files without CSV clutter</p>
               <div style={controls}>
-                <select
-                  value={downloadFormat}
-                  onChange={(e) => setDownloadFormat(e.target.value as "excel" | "pdf")}
-                  style={{ ...themedSelect, width: 120 }}
-                >
-                  <option value="excel">Excel</option>
-                  <option value="pdf">PDF</option>
-                </select>
+                <Select value={downloadFormat} onValueChange={(v) => setDownloadFormat(v as "excel" | "pdf")}>
+                  <SelectTrigger className="w-[120px] h-9 bg-black/40 border-gold/30 text-champagne">
+                    <SelectValue placeholder="Format" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-gold/30 text-champagne">
+                    <SelectItem value="excel">Excel</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                  </SelectContent>
+                </Select>
                 <button style={csvBtn} onClick={handleDownloadFiltered}>Download</button>
               </div>
             </div>
@@ -1771,12 +1785,12 @@ export default function AdminDashboard(): JSX.Element {
               Add/remove admin Entry IDs. Super admin is fixed to {SUPER_ADMIN_ENTRY_ID}.
             </p>
             <div style={{ ...controls, marginTop: 8 }}>
-              <input
-                value={newAdminEntryId}
-                onChange={(e) => setNewAdminEntryId(e.target.value)}
-                placeholder="Entry ID (e.g. 300525)"
-                style={{ ...filterInput, maxWidth: 220 }}
-              />
+                <input
+                  value={newAdminEntryId}
+                  onChange={(e) => setNewAdminEntryId(e.target.value)}
+                  placeholder="Entry ID"
+                  style={{ ...filterInput, maxWidth: 220 }}
+                />
               <button style={csvBtn} onClick={handleAddAdmin}>Add Admin</button>
             </div>
 
@@ -2249,19 +2263,6 @@ const filterInput: CSSProperties = {
   background: "rgba(255,255,255,0.04)",
   color: "#fff",
   outline: "none"
-};
-
-const themedSelect: CSSProperties = {
-  ...filterInput,
-  appearance: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
-  paddingRight: 30,
-  backgroundImage:
-    "linear-gradient(45deg, transparent 50%, #d8b35e 50%), linear-gradient(135deg, #d8b35e 50%, transparent 50%)",
-  backgroundPosition: "calc(100% - 14px) calc(50% - 3px), calc(100% - 9px) calc(50% - 3px)",
-  backgroundSize: "5px 5px, 5px 5px",
-  backgroundRepeat: "no-repeat"
 };
 
 const smallBtn: CSSProperties = {
