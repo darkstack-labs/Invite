@@ -22,6 +22,18 @@ import { toast } from "sonner";
 import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { guests } from "@/contexts/AuthContext";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
 
 interface RSVP {
   id?: string;
@@ -60,6 +72,15 @@ const nominationCategoryLabels: Record<string, string> = {
   best_dancer: "Best Dancer"
 };
 
+const chartPalette = ["#ffd57a", "#f5b000", "#ff8c42", "#f87171", "#60a5fa", "#a78bfa", "#34d399"];
+
+type DrillRow = {
+  voterName: string;
+  voterEntryId: string;
+  selection: string;
+  submittedAt: string;
+};
+
 export default function AdminDashboard(): JSX.Element {
 
   /* ---------------- STATE ---------------- */
@@ -93,6 +114,8 @@ export default function AdminDashboard(): JSX.Element {
   const [password, setPassword] = useState<string>("");
   const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
   const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
+  const [gamesView, setGamesView] = useState<"analytics" | "tables">("analytics");
+  const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
   const entryNameMap = useMemo(() => {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
     return Object.fromEntries(pairs) as Record<string, string>;
@@ -209,6 +232,87 @@ export default function AdminDashboard(): JSX.Element {
 
     return base;
   }, [selfNominations]);
+
+  const gamesStats = useMemo(() => {
+    const inviteeCount = Object.keys(guests).length;
+    const uniqueVoters = new Set<string>();
+
+    const allRecords: any[] = [
+      ...selfNominations,
+      ...cysVotes,
+      ...mpmVotes,
+      ...mpfVotes,
+      ...bmdVotes,
+      ...bfdVotes,
+      ...swdbitpVotes
+    ];
+
+    allRecords.forEach((record) => {
+      if (record?.entryId) uniqueVoters.add(record.entryId);
+    });
+
+    const makeSummary = (rows: any[], labelBuilder: (row: any) => string) => {
+      const counts = new Map<string, number>();
+      const votersBySelection = new Map<string, DrillRow[]>();
+
+      rows.forEach((row) => {
+        const label = labelBuilder(row);
+        if (!label || label === "-") return;
+        counts.set(label, (counts.get(label) ?? 0) + 1);
+
+        const voters = votersBySelection.get(label) ?? [];
+        voters.push({
+          voterName: row?.name ?? "Unknown",
+          voterEntryId: row?.entryId ?? "-",
+          selection: label,
+          submittedAt: formatGameTime(row)
+        });
+        votersBySelection.set(label, voters);
+      });
+
+      const ranking = Array.from(counts.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
+      return { ranking, votersBySelection };
+    };
+
+    const mpm = makeSummary(mpmVotes, (row) => row?.nomineeName ?? "-");
+    const mpf = makeSummary(mpfVotes, (row) => row?.nomineeName ?? "-");
+    const bmd = makeSummary(bmdVotes, (row) => `${row?.male1Name ?? "-"} + ${row?.male2Name ?? "-"}`);
+    const bfd = makeSummary(bfdVotes, (row) => `${row?.female1Name ?? "-"} + ${row?.female2Name ?? "-"}`);
+    const cys = makeSummary(cysVotes, (row) => `${row?.maleName ?? "-"} + ${row?.femaleName ?? "-"}`);
+    const swdbitp = makeSummary(swdbitpVotes, (row) => row?.nomineeName ?? "-");
+
+    const selfNominationCounts = Object.entries(nominationGroups).map(([key, names]) => ({
+      name: nominationCategoryLabels[key] ?? key,
+      value: names.length
+    }));
+
+    return {
+      inviteeCount,
+      uniqueVoterCount: uniqueVoters.size,
+      participationRate: inviteeCount > 0 ? Math.round((uniqueVoters.size / inviteeCount) * 100) : 0,
+      selfNominationCounts,
+      categories: {
+        cys,
+        mpm,
+        mpf,
+        bmd,
+        bfd,
+        swdbitp
+      }
+    };
+  }, [
+    selfNominations,
+    cysVotes,
+    mpmVotes,
+    mpfVotes,
+    bmdVotes,
+    bfdVotes,
+    swdbitpVotes,
+    nominationGroups
+  ]);
 
   useEffect(() => {
     const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
@@ -631,152 +735,265 @@ export default function AdminDashboard(): JSX.Element {
 
       {activeSection === "games" && (
         <div style={{ display: "grid", gap: 16 }}>
-          <section style={panel}>
-            <h3 style={panelTitle}>Self Nominations</h3>
-            <p style={mutedText}>Grouped by category</p>
+          <section style={{ ...panel, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <h3 style={panelTitle}>Games Analytics</h3>
+              <p style={mutedText}>Visual stats with drill-down voter details</p>
+            </div>
+            <div style={controls}>
+              <button
+                style={toggleViewBtn(gamesView === "analytics")}
+                onClick={() => setGamesView("analytics")}
+              >
+                Charts
+              </button>
+              <button
+                style={toggleViewBtn(gamesView === "tables")}
+                onClick={() => setGamesView("tables")}
+              >
+                Detailed Tables
+              </button>
+            </div>
+          </section>
 
-            <div style={overviewGrid}>
-              {Object.entries(nominationCategoryLabels).map(([key, label]) => {
-                const names = nominationGroups[key] ?? [];
-                return (
-                  <div key={key} style={miniPanel}>
-                    <h4 style={miniPanelTitle}>{label}</h4>
-                    <div style={mutedTextSmall}>{names.length} submissions</div>
-                    {names.length === 0 ? (
-                      <p style={mutedText}>No submissions yet.</p>
-                    ) : (
-                      <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                        {names.slice(0, 18).map((name, idx) => (
-                          <div key={`${name}-${idx}`} style={rowCompact}>{name}</div>
-                        ))}
-                        {names.length > 18 && (
-                          <div style={mutedTextSmall}>+{names.length - 18} more</div>
+          {gamesView === "analytics" && (
+            <>
+              <section style={overviewGrid}>
+                <div style={panel}>
+                  <h3 style={panelTitle}>Participation</h3>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={statRow}>
+                      <span style={mutedText}>Unique Voters</span>
+                      <strong>{gamesStats.uniqueVoterCount}</strong>
+                    </div>
+                    <div style={statRow}>
+                      <span style={mutedText}>Invitees</span>
+                      <strong>{gamesStats.inviteeCount}</strong>
+                    </div>
+                    <div style={statRow}>
+                      <span style={mutedText}>Participation Rate</span>
+                      <strong>{gamesStats.participationRate}%</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={panel}>
+                  <h3 style={panelTitle}>Self Nomination Mix</h3>
+                  <ChartDonut
+                    data={gamesStats.selfNominationCounts}
+                    onSliceClick={() => null}
+                    emptyLabel="No self nominations yet."
+                  />
+                </div>
+              </section>
+
+              <section style={overviewGrid}>
+                <div style={panel}>
+                  <h3 style={panelTitle}>Most Popular Male</h3>
+                  <ChartBars
+                    data={gamesStats.categories.mpm.ranking.slice(0, 8)}
+                    emptyLabel="No MPM votes yet."
+                    onBarClick={(name) => {
+                      const rows = gamesStats.categories.mpm.votersBySelection.get(name) ?? [];
+                      setDrilldown({ title: `MPM - ${name}`, rows });
+                    }}
+                  />
+                </div>
+                <div style={panel}>
+                  <h3 style={panelTitle}>Most Popular Female</h3>
+                  <ChartBars
+                    data={gamesStats.categories.mpf.ranking.slice(0, 8)}
+                    emptyLabel="No MPF votes yet."
+                    onBarClick={(name) => {
+                      const rows = gamesStats.categories.mpf.votersBySelection.get(name) ?? [];
+                      setDrilldown({ title: `MPF - ${name}`, rows });
+                    }}
+                  />
+                </div>
+              </section>
+
+              <section style={overviewGrid}>
+                <div style={panel}>
+                  <h3 style={panelTitle}>A Couple You Ship</h3>
+                  <ChartDonut
+                    data={gamesStats.categories.cys.ranking.slice(0, 8)}
+                    emptyLabel="No CYS votes yet."
+                    onSliceClick={(name) => {
+                      const rows = gamesStats.categories.cys.votersBySelection.get(name) ?? [];
+                      setDrilldown({ title: `CYS - ${name}`, rows });
+                    }}
+                  />
+                </div>
+                <div style={panel}>
+                  <h3 style={panelTitle}>Someone Who Doesn't Belong</h3>
+                  <ChartDonut
+                    data={gamesStats.categories.swdbitp.ranking.slice(0, 8)}
+                    emptyLabel="No SWDBITP votes yet."
+                    onSliceClick={(name) => {
+                      const rows = gamesStats.categories.swdbitp.votersBySelection.get(name) ?? [];
+                      setDrilldown({ title: `SWDBITP - ${name}`, rows });
+                    }}
+                  />
+                </div>
+              </section>
+
+              <section style={overviewGrid}>
+                <div style={panel}>
+                  <h3 style={panelTitle}>Best Male Duo</h3>
+                  <ChartBars
+                    data={gamesStats.categories.bmd.ranking.slice(0, 8)}
+                    emptyLabel="No BMD votes yet."
+                    onBarClick={(name) => {
+                      const rows = gamesStats.categories.bmd.votersBySelection.get(name) ?? [];
+                      setDrilldown({ title: `BMD - ${name}`, rows });
+                    }}
+                  />
+                </div>
+                <div style={panel}>
+                  <h3 style={panelTitle}>Best Female Duo</h3>
+                  <ChartBars
+                    data={gamesStats.categories.bfd.ranking.slice(0, 8)}
+                    emptyLabel="No BFD votes yet."
+                    onBarClick={(name) => {
+                      const rows = gamesStats.categories.bfd.votersBySelection.get(name) ?? [];
+                      setDrilldown({ title: `BFD - ${name}`, rows });
+                    }}
+                  />
+                </div>
+              </section>
+            </>
+          )}
+
+          {gamesView === "tables" && (
+            <>
+              <section style={panel}>
+                <h3 style={panelTitle}>Self Nominations</h3>
+                <p style={mutedText}>Grouped by category</p>
+
+                <div style={overviewGrid}>
+                  {Object.entries(nominationCategoryLabels).map(([key, label]) => {
+                    const names = nominationGroups[key] ?? [];
+                    return (
+                      <div key={key} style={miniPanel}>
+                        <h4 style={miniPanelTitle}>{label}</h4>
+                        <div style={mutedTextSmall}>{names.length} submissions</div>
+                        {names.length === 0 ? (
+                          <p style={mutedText}>No submissions yet.</p>
+                        ) : (
+                          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                            {names.slice(0, 18).map((name, idx) => (
+                              <div key={`${name}-${idx}`} style={rowCompact}>{name}</div>
+                            ))}
+                            {names.length > 18 && (
+                              <div style={mutedTextSmall}>+{names.length - 18} more</div>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              </section>
 
-            <div style={{ marginTop: 14 }}>
-              <h4 style={miniPanelTitle}>Recent Self Nomination Entries</h4>
-              <div style={activityTableWrap}>
-                <table style={activityTable}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-                      <th style={th}>Time</th>
-                      <th style={th}>Submitter</th>
-                      <th style={th}>Entry ID</th>
-                      <th style={th}>Gender</th>
-                      <th style={th}>Categories</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selfNominations.length === 0 && (
-                      <tr>
-                        <td style={emptyTd} colSpan={5}>No nomination entries yet.</td>
+              <section style={panel}>
+                <h3 style={panelTitle}>CYS Votes</h3>
+                <div style={activityTableWrap}>
+                  <table style={activityTable}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                        <th style={th}>Time</th>
+                        <th style={th}>Submitter</th>
+                        <th style={th}>Entry ID</th>
+                        <th style={th}>Selected Pair</th>
                       </tr>
-                    )}
-                    {selfNominations.map((item: any) => (
-                      <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                        <td style={td}>{formatGameTime(item)}</td>
-                        <td style={td}>{item.name ?? "-"}</td>
-                        <td style={td}>{item.entryId ?? "-"}</td>
-                        <td style={td}>{item.gender ?? "-"}</td>
-                        <td style={td}>
-                          {Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
-                            ? item.selectedCategories
-                              .map((value: string) => nominationCategoryLabels[value] ?? value)
-                              .join(", ")
-                            : "-"}
-                        </td>
+                    </thead>
+                    <tbody>
+                      {cysVotes.length === 0 && (
+                        <tr>
+                          <td style={emptyTd} colSpan={4}>No CYS votes yet.</td>
+                        </tr>
+                      )}
+                      {cysVotes.map((item: any) => (
+                        <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                          <td style={td}>{formatGameTime(item)}</td>
+                          <td style={td}>{item.name ?? "-"}</td>
+                          <td style={td}>{item.entryId ?? "-"}</td>
+                          <td style={td}>{`${item.maleName ?? "-"} + ${item.femaleName ?? "-"}`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section style={overviewGrid}>
+                <div style={panel}>
+                  <h3 style={panelTitle}>MPM Votes</h3>
+                  <VoteTable rows={mpmVotes} emptyLabel="No MPM votes yet." />
+                </div>
+
+                <div style={panel}>
+                  <h3 style={panelTitle}>MPF Votes</h3>
+                  <VoteTable rows={mpfVotes} emptyLabel="No MPF votes yet." />
+                </div>
+              </section>
+
+              <section style={overviewGrid}>
+                <div style={panel}>
+                  <h3 style={panelTitle}>BMD Votes</h3>
+                  <DuoVoteTable rows={bmdVotes} leftLabel="Male 1" rightLabel="Male 2" emptyLabel="No BMD votes yet." />
+                </div>
+
+                <div style={panel}>
+                  <h3 style={panelTitle}>BFD Votes</h3>
+                  <DuoVoteTable rows={bfdVotes} leftLabel="Female 1" rightLabel="Female 2" emptyLabel="No BFD votes yet." />
+                </div>
+              </section>
+
+              <section style={panel}>
+                <h3 style={panelTitle}>SWDBITP Votes</h3>
+                <VoteTable rows={swdbitpVotes} emptyLabel="No SWDBITP votes yet." />
+              </section>
+            </>
+          )}
+
+          {drilldown && (
+            <div style={modalOverlay}>
+              <div style={modalCard}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <h3 style={{ ...panelTitle, marginBottom: 0 }}>{drilldown.title}</h3>
+                  <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
+                </div>
+                <div style={activityTableWrap}>
+                  <table style={activityTable}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                        <th style={th}>Voter</th>
+                        <th style={th}>Entry ID</th>
+                        <th style={th}>Selection</th>
+                        <th style={th}>Time</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {drilldown.rows.length === 0 && (
+                        <tr>
+                          <td style={emptyTd} colSpan={4}>No rows found.</td>
+                        </tr>
+                      )}
+                      {drilldown.rows.map((row, idx) => (
+                        <tr key={`${row.voterEntryId}-${idx}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                          <td style={td}>{row.voterName}</td>
+                          <td style={td}>{row.voterEntryId}</td>
+                          <td style={td}>{row.selection}</td>
+                          <td style={td}>{row.submittedAt}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </section>
-
-          <section style={panel}>
-            <h3 style={panelTitle}>CYS Votes</h3>
-            <div style={activityTableWrap}>
-              <table style={activityTable}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-                    <th style={th}>Time</th>
-                    <th style={th}>Submitter</th>
-                    <th style={th}>Entry ID</th>
-                    <th style={th}>Selected Pair</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cysVotes.length === 0 && (
-                    <tr>
-                      <td style={emptyTd} colSpan={4}>No CYS votes yet.</td>
-                    </tr>
-                  )}
-                  {cysVotes.map((item: any) => (
-                    <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                      <td style={td}>{formatGameTime(item)}</td>
-                      <td style={td}>{item.name ?? "-"}</td>
-                      <td style={td}>{item.entryId ?? "-"}</td>
-                      <td style={td}>{`${item.maleName ?? "-"} + ${item.femaleName ?? "-"}`}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section style={overviewGrid}>
-            <div style={panel}>
-              <h3 style={panelTitle}>MPM Votes</h3>
-              <VoteTable
-                rows={mpmVotes}
-                emptyLabel="No MPM votes yet."
-              />
-            </div>
-
-            <div style={panel}>
-              <h3 style={panelTitle}>MPF Votes</h3>
-              <VoteTable
-                rows={mpfVotes}
-                emptyLabel="No MPF votes yet."
-              />
-            </div>
-          </section>
-
-          <section style={overviewGrid}>
-            <div style={panel}>
-              <h3 style={panelTitle}>BMD Votes</h3>
-              <DuoVoteTable
-                rows={bmdVotes}
-                leftLabel="Male 1"
-                rightLabel="Male 2"
-                emptyLabel="No BMD votes yet."
-              />
-            </div>
-
-            <div style={panel}>
-              <h3 style={panelTitle}>BFD Votes</h3>
-              <DuoVoteTable
-                rows={bfdVotes}
-                leftLabel="Female 1"
-                rightLabel="Female 2"
-                emptyLabel="No BFD votes yet."
-              />
-            </div>
-          </section>
-
-          <section style={panel}>
-            <h3 style={panelTitle}>SWDBITP Votes</h3>
-            <VoteTable
-              rows={swdbitpVotes}
-              emptyLabel="No SWDBITP votes yet."
-            />
-          </section>
+          )}
         </div>
       )}
     </AdminLayout>
@@ -865,6 +1082,96 @@ function DuoVoteTable({
   );
 }
 
+function ChartDonut({
+  data,
+  emptyLabel,
+  onSliceClick
+}: {
+  data: Array<{ name: string; value: number }>;
+  emptyLabel: string;
+  onSliceClick: (name: string) => void;
+}) {
+  if (!data.length) {
+    return <p style={mutedText}>{emptyLabel}</p>;
+  }
+
+  return (
+    <div style={chartWrap}>
+      <ResponsiveContainer width="100%" height={280}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            outerRadius={95}
+            onClick={(entry: any) => onSliceClick(entry?.name)}
+          >
+            {data.map((_, index) => (
+              <Cell key={`cell-${index}`} fill={chartPalette[index % chartPalette.length]} />
+            ))}
+          </Pie>
+          <Tooltip />
+        </PieChart>
+      </ResponsiveContainer>
+      <div style={legendWrap}>
+        {data.slice(0, 8).map((item, index) => (
+          <button
+            key={item.name}
+            style={legendBtn}
+            onClick={() => onSliceClick(item.name)}
+          >
+            <span
+              style={{
+                ...legendDot,
+                background: chartPalette[index % chartPalette.length]
+              }}
+            />
+            {item.name} ({item.value})
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChartBars({
+  data,
+  emptyLabel,
+  onBarClick
+}: {
+  data: Array<{ name: string; value: number }>;
+  emptyLabel: string;
+  onBarClick: (name: string) => void;
+}) {
+  if (!data.length) {
+    return <p style={mutedText}>{emptyLabel}</p>;
+  }
+
+  return (
+    <div style={chartWrap}>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+          <XAxis type="number" tick={{ fill: "#d2d7df", fontSize: 11 }} />
+          <YAxis
+            dataKey="name"
+            type="category"
+            width={120}
+            tick={{ fill: "#d2d7df", fontSize: 11 }}
+            tickFormatter={(value) => `${String(value).slice(0, 16)}${String(value).length > 16 ? "..." : ""}`}
+          />
+          <Tooltip />
+          <Bar dataKey="value" radius={[6, 6, 6, 6]} onClick={(entry: any) => onBarClick(entry?.name)}>
+            {data.map((_, index) => (
+              <Cell key={`bar-${index}`} fill={chartPalette[index % chartPalette.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 const overviewGrid: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
@@ -910,6 +1217,16 @@ const miniPanelTitle: CSSProperties = {
   margin: 0,
   color: "#ffd57a",
   fontSize: 14
+};
+
+const statRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "8px 10px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.02)"
 };
 
 const mutedText: CSSProperties = {
@@ -984,6 +1301,77 @@ const controls: CSSProperties = {
   display: "flex",
   gap: 6,
   flexWrap: "wrap"
+};
+
+const toggleViewBtn = (active: boolean): CSSProperties => ({
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: 8,
+  padding: "6px 10px",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
+  color: active ? "#111" : "#fff",
+  background: active ? "#ffd57a" : "rgba(255,255,255,0.06)"
+});
+
+const chartWrap: CSSProperties = {
+  width: "100%",
+  minHeight: 280
+};
+
+const legendWrap: CSSProperties = {
+  display: "grid",
+  gap: 6
+};
+
+const legendBtn: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 8,
+  padding: "6px 8px",
+  background: "rgba(255,255,255,0.03)",
+  color: "#e8ecf2",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  textAlign: "left"
+};
+
+const legendDot: CSSProperties = {
+  width: 10,
+  height: 10,
+  borderRadius: 999
+};
+
+const modalOverlay: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.65)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: 16,
+  zIndex: 50
+};
+
+const modalCard: CSSProperties = {
+  width: "min(980px, 100%)",
+  maxHeight: "85vh",
+  overflow: "auto",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 14,
+  background: "#111418",
+  padding: 14
+};
+
+const closeBtn: CSSProperties = {
+  border: "none",
+  borderRadius: 8,
+  padding: "6px 10px",
+  background: "#ff4d4f",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: 700
 };
 
 const blockBtn = (blocked: boolean): CSSProperties => ({
