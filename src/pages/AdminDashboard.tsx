@@ -81,6 +81,19 @@ type DrillRow = {
   submittedAt: string;
 };
 
+type GameCategory = "self" | "cys" | "mpm" | "mpf" | "bmd" | "bfd" | "swdbitp";
+
+type NormalizedGameRow = {
+  id: string;
+  category: GameCategory;
+  categoryLabel: string;
+  voterName: string;
+  voterEntryId: string;
+  selection: string;
+  submittedAtText: string;
+  submittedAtDate: Date | null;
+};
+
 export default function AdminDashboard(): JSX.Element {
 
   /* ---------------- STATE ---------------- */
@@ -115,6 +128,10 @@ export default function AdminDashboard(): JSX.Element {
   const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
   const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
   const [gamesView, setGamesView] = useState<"analytics" | "tables">("analytics");
+  const [gamesCategoryFilter, setGamesCategoryFilter] = useState<"all" | GameCategory>("all");
+  const [gamesSearch, setGamesSearch] = useState("");
+  const [gamesStartDate, setGamesStartDate] = useState("");
+  const [gamesEndDate, setGamesEndDate] = useState("");
   const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
   const entryNameMap = useMemo(() => {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
@@ -208,6 +225,123 @@ export default function AdminDashboard(): JSX.Element {
       .slice(0, 12);
   }, [activityLogs, suspiciousDevices]);
 
+  const allGameRows = useMemo<NormalizedGameRow[]>(() => {
+    const rows: NormalizedGameRow[] = [];
+
+    selfNominations.forEach((record: any) => {
+      const selected = Array.isArray(record?.selectedCategories) ? record.selectedCategories : [];
+      selected.forEach((categoryKey: string, index: number) => {
+        rows.push({
+          id: `${record.id}-${categoryKey}-${index}`,
+          category: "self",
+          categoryLabel: "Self Nomination",
+          voterName: record?.name ?? "Unknown",
+          voterEntryId: record?.entryId ?? "-",
+          selection: nominationCategoryLabels[categoryKey] ?? categoryKey,
+          submittedAtText: formatGameTime(record),
+          submittedAtDate: getRecordDate(record)
+        });
+      });
+    });
+
+    cysVotes.forEach((row: any) =>
+      rows.push({
+        id: row.id,
+        category: "cys",
+        categoryLabel: "A Couple You Ship",
+        voterName: row?.name ?? "Unknown",
+        voterEntryId: row?.entryId ?? "-",
+        selection: `${row?.maleName ?? "-"} + ${row?.femaleName ?? "-"}`,
+        submittedAtText: formatGameTime(row),
+        submittedAtDate: getRecordDate(row)
+      })
+    );
+
+    mpmVotes.forEach((row: any) =>
+      rows.push({
+        id: row.id,
+        category: "mpm",
+        categoryLabel: "Most Popular Male",
+        voterName: row?.name ?? "Unknown",
+        voterEntryId: row?.entryId ?? "-",
+        selection: row?.nomineeName ?? "-",
+        submittedAtText: formatGameTime(row),
+        submittedAtDate: getRecordDate(row)
+      })
+    );
+
+    mpfVotes.forEach((row: any) =>
+      rows.push({
+        id: row.id,
+        category: "mpf",
+        categoryLabel: "Most Popular Female",
+        voterName: row?.name ?? "Unknown",
+        voterEntryId: row?.entryId ?? "-",
+        selection: row?.nomineeName ?? "-",
+        submittedAtText: formatGameTime(row),
+        submittedAtDate: getRecordDate(row)
+      })
+    );
+
+    bmdVotes.forEach((row: any) =>
+      rows.push({
+        id: row.id,
+        category: "bmd",
+        categoryLabel: "Best Male Duo",
+        voterName: row?.name ?? "Unknown",
+        voterEntryId: row?.entryId ?? "-",
+        selection: `${row?.male1Name ?? "-"} + ${row?.male2Name ?? "-"}`,
+        submittedAtText: formatGameTime(row),
+        submittedAtDate: getRecordDate(row)
+      })
+    );
+
+    bfdVotes.forEach((row: any) =>
+      rows.push({
+        id: row.id,
+        category: "bfd",
+        categoryLabel: "Best Female Duo",
+        voterName: row?.name ?? "Unknown",
+        voterEntryId: row?.entryId ?? "-",
+        selection: `${row?.female1Name ?? "-"} + ${row?.female2Name ?? "-"}`,
+        submittedAtText: formatGameTime(row),
+        submittedAtDate: getRecordDate(row)
+      })
+    );
+
+    swdbitpVotes.forEach((row: any) =>
+      rows.push({
+        id: row.id,
+        category: "swdbitp",
+        categoryLabel: "Someone Who Doesn't Belong",
+        voterName: row?.name ?? "Unknown",
+        voterEntryId: row?.entryId ?? "-",
+        selection: row?.nomineeName ?? "-",
+        submittedAtText: formatGameTime(row),
+        submittedAtDate: getRecordDate(row)
+      })
+    );
+
+    return rows;
+  }, [selfNominations, cysVotes, mpmVotes, mpfVotes, bmdVotes, bfdVotes, swdbitpVotes]);
+
+  const filteredGameRows = useMemo(() => {
+    const searchQuery = gamesSearch.trim().toLowerCase();
+    const start = gamesStartDate ? new Date(`${gamesStartDate}T00:00:00`) : null;
+    const end = gamesEndDate ? new Date(`${gamesEndDate}T23:59:59`) : null;
+
+    return allGameRows.filter((row) => {
+      if (gamesCategoryFilter !== "all" && row.category !== gamesCategoryFilter) return false;
+      if (searchQuery) {
+        const haystack = `${row.voterName} ${row.voterEntryId} ${row.selection}`.toLowerCase();
+        if (!haystack.includes(searchQuery)) return false;
+      }
+      if (start && (!row.submittedAtDate || row.submittedAtDate < start)) return false;
+      if (end && (!row.submittedAtDate || row.submittedAtDate > end)) return false;
+      return true;
+    });
+  }, [allGameRows, gamesCategoryFilter, gamesSearch, gamesStartDate, gamesEndDate]);
+
   const nominationGroups = useMemo(() => {
     const base: Record<string, string[]> = {
       most_popular_male: [],
@@ -217,72 +351,53 @@ export default function AdminDashboard(): JSX.Element {
       best_dancer: []
     };
 
-    selfNominations.forEach((record: any) => {
-      const name = record?.name ?? "Unknown";
-      const selected = Array.isArray(record?.selectedCategories)
-        ? record.selectedCategories
-        : [];
-
-      selected.forEach((category: string) => {
-        if (base[category]) {
-          base[category].push(name);
-        }
+    filteredGameRows
+      .filter((row) => row.category === "self")
+      .forEach((row) => {
+        const key = Object.entries(nominationCategoryLabels)
+          .find(([, label]) => label === row.selection)?.[0];
+        if (key && base[key]) base[key].push(row.voterName);
       });
-    });
 
     return base;
-  }, [selfNominations]);
+  }, [filteredGameRows]);
+
+  const rowsByCategory = useMemo(() => {
+    return {
+      cys: filteredGameRows.filter((row) => row.category === "cys"),
+      mpm: filteredGameRows.filter((row) => row.category === "mpm"),
+      mpf: filteredGameRows.filter((row) => row.category === "mpf"),
+      bmd: filteredGameRows.filter((row) => row.category === "bmd"),
+      bfd: filteredGameRows.filter((row) => row.category === "bfd"),
+      swdbitp: filteredGameRows.filter((row) => row.category === "swdbitp")
+    };
+  }, [filteredGameRows]);
 
   const gamesStats = useMemo(() => {
     const inviteeCount = Object.keys(guests).length;
     const uniqueVoters = new Set<string>();
+    filteredGameRows.forEach((row) => uniqueVoters.add(row.voterEntryId));
 
-    const allRecords: any[] = [
-      ...selfNominations,
-      ...cysVotes,
-      ...mpmVotes,
-      ...mpfVotes,
-      ...bmdVotes,
-      ...bfdVotes,
-      ...swdbitpVotes
-    ];
-
-    allRecords.forEach((record) => {
-      if (record?.entryId) uniqueVoters.add(record.entryId);
-    });
-
-    const makeSummary = (rows: any[], labelBuilder: (row: any) => string) => {
+    const makeSummary = (rows: NormalizedGameRow[]) => {
       const counts = new Map<string, number>();
       const votersBySelection = new Map<string, DrillRow[]>();
-
       rows.forEach((row) => {
-        const label = labelBuilder(row);
-        if (!label || label === "-") return;
-        counts.set(label, (counts.get(label) ?? 0) + 1);
-
-        const voters = votersBySelection.get(label) ?? [];
+        if (!row.selection || row.selection === "-") return;
+        counts.set(row.selection, (counts.get(row.selection) ?? 0) + 1);
+        const voters = votersBySelection.get(row.selection) ?? [];
         voters.push({
-          voterName: row?.name ?? "Unknown",
-          voterEntryId: row?.entryId ?? "-",
-          selection: label,
-          submittedAt: formatGameTime(row)
+          voterName: row.voterName,
+          voterEntryId: row.voterEntryId,
+          selection: row.selection,
+          submittedAt: row.submittedAtText
         });
-        votersBySelection.set(label, voters);
+        votersBySelection.set(row.selection, voters);
       });
-
       const ranking = Array.from(counts.entries())
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value);
-
       return { ranking, votersBySelection };
     };
-
-    const mpm = makeSummary(mpmVotes, (row) => row?.nomineeName ?? "-");
-    const mpf = makeSummary(mpfVotes, (row) => row?.nomineeName ?? "-");
-    const bmd = makeSummary(bmdVotes, (row) => `${row?.male1Name ?? "-"} + ${row?.male2Name ?? "-"}`);
-    const bfd = makeSummary(bfdVotes, (row) => `${row?.female1Name ?? "-"} + ${row?.female2Name ?? "-"}`);
-    const cys = makeSummary(cysVotes, (row) => `${row?.maleName ?? "-"} + ${row?.femaleName ?? "-"}`);
-    const swdbitp = makeSummary(swdbitpVotes, (row) => row?.nomineeName ?? "-");
 
     const selfNominationCounts = Object.entries(nominationGroups).map(([key, names]) => ({
       name: nominationCategoryLabels[key] ?? key,
@@ -295,24 +410,56 @@ export default function AdminDashboard(): JSX.Element {
       participationRate: inviteeCount > 0 ? Math.round((uniqueVoters.size / inviteeCount) * 100) : 0,
       selfNominationCounts,
       categories: {
-        cys,
-        mpm,
-        mpf,
-        bmd,
-        bfd,
-        swdbitp
+        cys: makeSummary(rowsByCategory.cys),
+        mpm: makeSummary(rowsByCategory.mpm),
+        mpf: makeSummary(rowsByCategory.mpf),
+        bmd: makeSummary(rowsByCategory.bmd),
+        bfd: makeSummary(rowsByCategory.bfd),
+        swdbitp: makeSummary(rowsByCategory.swdbitp)
       }
     };
-  }, [
-    selfNominations,
-    cysVotes,
-    mpmVotes,
-    mpfVotes,
-    bmdVotes,
-    bfdVotes,
-    swdbitpVotes,
-    nominationGroups
-  ]);
+  }, [filteredGameRows, nominationGroups, rowsByCategory]);
+
+  const suspiciousVoteInsights = useMemo(() => {
+    const suspiciousDominance = Object.entries(gamesStats.categories).flatMap(([key, summary]) => {
+      const totalVotes = summary.ranking.reduce((sum, item) => sum + item.value, 0);
+      if (totalVotes < 5 || summary.ranking.length === 0) return [];
+      const top = summary.ranking[0];
+      const share = Math.round((top.value / totalVotes) * 100);
+      if (share < 45) return [];
+      return [{
+        id: `dom-${key}`,
+        title: `${key.toUpperCase()} concentration`,
+        detail: `${top.name} has ${top.value}/${totalVotes} votes (${share}%)`
+      }];
+    });
+
+    const voterBuckets = new Map<string, NormalizedGameRow[]>();
+    filteredGameRows.forEach((row) => {
+      const list = voterBuckets.get(row.voterEntryId) ?? [];
+      list.push(row);
+      voterBuckets.set(row.voterEntryId, list);
+    });
+
+    const rapidVoters = Array.from(voterBuckets.values())
+      .map((rows) => rows
+        .filter((row) => row.submittedAtDate)
+        .sort((a, b) => (a.submittedAtDate?.getTime() ?? 0) - (b.submittedAtDate?.getTime() ?? 0))
+      )
+      .filter((rows) => rows.length >= 4)
+      .filter((rows) => {
+        const first = rows[0].submittedAtDate?.getTime() ?? 0;
+        const fourth = rows[3].submittedAtDate?.getTime() ?? 0;
+        return fourth - first <= 2 * 60 * 1000;
+      })
+      .map((rows) => ({
+        id: `rapid-${rows[0].voterEntryId}`,
+        title: "Rapid multi-category voting",
+        detail: `${rows[0].voterName} submitted 4+ votes within 2 minutes`
+      }));
+
+    return [...suspiciousDominance, ...rapidVoters].slice(0, 8);
+  }, [filteredGameRows, gamesStats.categories]);
 
   useEffect(() => {
     const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
@@ -372,6 +519,62 @@ export default function AdminDashboard(): JSX.Element {
       console.error(error);
       toast.error("Failed to delete suggestion");
     }
+  };
+
+  const applyDatePreset = (preset: "today" | "last7" | "all") => {
+    if (preset === "all") {
+      setGamesStartDate("");
+      setGamesEndDate("");
+      return;
+    }
+
+    const now = new Date();
+    const end = toInputDate(now);
+    if (preset === "today") {
+      setGamesStartDate(end);
+      setGamesEndDate(end);
+      return;
+    }
+
+    const startDate = new Date(now);
+    startDate.setDate(now.getDate() - 6);
+    setGamesStartDate(toInputDate(startDate));
+    setGamesEndDate(end);
+  };
+
+  const handleExportFilteredGames = () => {
+    if (filteredGameRows.length === 0) {
+      toast.error("No filtered rows to export");
+      return;
+    }
+
+    exportCsv(
+      `games-votes-${new Date().toISOString().slice(0, 10)}.csv`,
+      filteredGameRows.map((row) => ({
+        category: row.categoryLabel,
+        voter_name: row.voterName,
+        voter_entry_id: row.voterEntryId,
+        selection: row.selection,
+        submitted_at: row.submittedAtText
+      }))
+    );
+  };
+
+  const handleExportDrilldown = () => {
+    if (!drilldown || drilldown.rows.length === 0) {
+      toast.error("No drilldown rows to export");
+      return;
+    }
+
+    exportCsv(
+      `${sanitizeFileName(drilldown.title)}-${new Date().toISOString().slice(0, 10)}.csv`,
+      drilldown.rows.map((row) => ({
+        voter_name: row.voterName,
+        voter_entry_id: row.voterEntryId,
+        selection: row.selection,
+        submitted_at: row.submittedAt
+      }))
+    );
   };
 
   /* ---------------- AUTH ---------------- */
@@ -738,7 +941,7 @@ export default function AdminDashboard(): JSX.Element {
           <section style={{ ...panel, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <div>
               <h3 style={panelTitle}>Games Analytics</h3>
-              <p style={mutedText}>Visual stats with drill-down voter details</p>
+              <p style={mutedText}>Visual stats, advanced filters, CSV export, and drill-down voter details</p>
             </div>
             <div style={controls}>
               <button
@@ -753,7 +956,89 @@ export default function AdminDashboard(): JSX.Element {
               >
                 Detailed Tables
               </button>
+              <button
+                style={csvBtn}
+                onClick={handleExportFilteredGames}
+              >
+                Export Filtered CSV
+              </button>
             </div>
+          </section>
+
+          <section style={panel}>
+            <div style={gamesFilterGrid}>
+              <div style={filterCell}>
+                <label style={filterLabel}>Category</label>
+                <select
+                  value={gamesCategoryFilter}
+                  onChange={(e) => setGamesCategoryFilter(e.target.value as "all" | GameCategory)}
+                  style={filterInput}
+                >
+                  <option value="all">All Categories</option>
+                  <option value="self">Self Nominations</option>
+                  <option value="cys">A Couple You Ship</option>
+                  <option value="mpm">Most Popular Male</option>
+                  <option value="mpf">Most Popular Female</option>
+                  <option value="bmd">Best Male Duo</option>
+                  <option value="bfd">Best Female Duo</option>
+                  <option value="swdbitp">Someone Who Doesn't Belong</option>
+                </select>
+              </div>
+
+              <div style={filterCell}>
+                <label style={filterLabel}>Search</label>
+                <input
+                  value={gamesSearch}
+                  onChange={(e) => setGamesSearch(e.target.value)}
+                  placeholder="Voter / entry ID / nominee"
+                  style={filterInput}
+                />
+              </div>
+
+              <div style={filterCell}>
+                <label style={filterLabel}>Start Date</label>
+                <input
+                  type="date"
+                  value={gamesStartDate}
+                  onChange={(e) => setGamesStartDate(e.target.value)}
+                  style={filterInput}
+                />
+              </div>
+
+              <div style={filterCell}>
+                <label style={filterLabel}>End Date</label>
+                <input
+                  type="date"
+                  value={gamesEndDate}
+                  onChange={(e) => setGamesEndDate(e.target.value)}
+                  style={filterInput}
+                />
+              </div>
+
+              <div style={{ ...filterCell, justifyContent: "flex-end" }}>
+                <div style={controls}>
+                  <button style={smallBtn} onClick={() => applyDatePreset("today")}>Today</button>
+                  <button style={smallBtn} onClick={() => applyDatePreset("last7")}>Last 7 Days</button>
+                  <button style={smallBtn} onClick={() => applyDatePreset("all")}>Clear Dates</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section style={panel}>
+            <h3 style={panelTitle}>Suspicious Pattern Insights</h3>
+            {suspiciousVoteInsights.length === 0 ? (
+              <p style={mutedText}>No suspicious patterns detected for current filters.</p>
+            ) : (
+              <div style={overviewGrid}>
+                {suspiciousVoteInsights.map((item) => (
+                  <div key={item.id} style={miniPanel}>
+                    <h4 style={miniPanelTitle}>{item.title}</h4>
+                    <p style={mutedText}>{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {gamesView === "analytics" && (
@@ -908,17 +1193,17 @@ export default function AdminDashboard(): JSX.Element {
                       </tr>
                     </thead>
                     <tbody>
-                      {cysVotes.length === 0 && (
+                      {rowsByCategory.cys.length === 0 && (
                         <tr>
                           <td style={emptyTd} colSpan={4}>No CYS votes yet.</td>
                         </tr>
                       )}
-                      {cysVotes.map((item: any) => (
+                      {rowsByCategory.cys.map((item: any) => (
                         <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                          <td style={td}>{formatGameTime(item)}</td>
-                          <td style={td}>{item.name ?? "-"}</td>
-                          <td style={td}>{item.entryId ?? "-"}</td>
-                          <td style={td}>{`${item.maleName ?? "-"} + ${item.femaleName ?? "-"}`}</td>
+                          <td style={td}>{item.submittedAtText ?? "-"}</td>
+                          <td style={td}>{item.voterName ?? "-"}</td>
+                          <td style={td}>{item.voterEntryId ?? "-"}</td>
+                          <td style={td}>{item.selection ?? "-"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -929,30 +1214,30 @@ export default function AdminDashboard(): JSX.Element {
               <section style={overviewGrid}>
                 <div style={panel}>
                   <h3 style={panelTitle}>MPM Votes</h3>
-                  <VoteTable rows={mpmVotes} emptyLabel="No MPM votes yet." />
+                  <VoteTable rows={rowsByCategory.mpm} emptyLabel="No MPM votes yet." />
                 </div>
 
                 <div style={panel}>
                   <h3 style={panelTitle}>MPF Votes</h3>
-                  <VoteTable rows={mpfVotes} emptyLabel="No MPF votes yet." />
+                  <VoteTable rows={rowsByCategory.mpf} emptyLabel="No MPF votes yet." />
                 </div>
               </section>
 
               <section style={overviewGrid}>
                 <div style={panel}>
                   <h3 style={panelTitle}>BMD Votes</h3>
-                  <DuoVoteTable rows={bmdVotes} leftLabel="Male 1" rightLabel="Male 2" emptyLabel="No BMD votes yet." />
+                  <DuoVoteTable rows={rowsByCategory.bmd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BMD votes yet." />
                 </div>
 
                 <div style={panel}>
                   <h3 style={panelTitle}>BFD Votes</h3>
-                  <DuoVoteTable rows={bfdVotes} leftLabel="Female 1" rightLabel="Female 2" emptyLabel="No BFD votes yet." />
+                  <DuoVoteTable rows={rowsByCategory.bfd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BFD votes yet." />
                 </div>
               </section>
 
               <section style={panel}>
                 <h3 style={panelTitle}>SWDBITP Votes</h3>
-                <VoteTable rows={swdbitpVotes} emptyLabel="No SWDBITP votes yet." />
+                <VoteTable rows={rowsByCategory.swdbitp} emptyLabel="No SWDBITP votes yet." />
               </section>
             </>
           )}
@@ -962,7 +1247,10 @@ export default function AdminDashboard(): JSX.Element {
               <div style={modalCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <h3 style={{ ...panelTitle, marginBottom: 0 }}>{drilldown.title}</h3>
-                  <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
+                  <div style={controls}>
+                    <button style={csvBtn} onClick={handleExportDrilldown}>Export CSV</button>
+                    <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
+                  </div>
                 </div>
                 <div style={activityTableWrap}>
                   <table style={activityTable}>
@@ -1026,10 +1314,10 @@ function VoteTable({
           )}
           {rows.map((item) => (
             <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              <td style={td}>{formatGameTime(item)}</td>
-              <td style={td}>{item.name ?? "-"}</td>
-              <td style={td}>{item.entryId ?? "-"}</td>
-              <td style={td}>{item.nomineeName ?? "-"}</td>
+              <td style={td}>{item.submittedAtText ?? formatGameTime(item)}</td>
+              <td style={td}>{item.voterName ?? item.name ?? "-"}</td>
+              <td style={td}>{item.voterEntryId ?? item.entryId ?? "-"}</td>
+              <td style={td}>{item.selection ?? item.nomineeName ?? "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -1069,11 +1357,11 @@ function DuoVoteTable({
           )}
           {rows.map((item) => (
             <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              <td style={td}>{formatGameTime(item)}</td>
-              <td style={td}>{item.name ?? "-"}</td>
-              <td style={td}>{item.entryId ?? "-"}</td>
-              <td style={td}>{item.male1Name ?? item.female1Name ?? "-"}</td>
-              <td style={td}>{item.male2Name ?? item.female2Name ?? "-"}</td>
+              <td style={td}>{item.submittedAtText ?? formatGameTime(item)}</td>
+              <td style={td}>{item.voterName ?? item.name ?? "-"}</td>
+              <td style={td}>{item.voterEntryId ?? item.entryId ?? "-"}</td>
+              <td style={td}>{item.selection ?? `${item.male1Name ?? item.female1Name ?? "-"} + ${item.male2Name ?? item.female2Name ?? "-"}`}</td>
+              <td style={td}>{item.value ?? 1}</td>
             </tr>
           ))}
         </tbody>
@@ -1303,6 +1591,54 @@ const controls: CSSProperties = {
   flexWrap: "wrap"
 };
 
+const gamesFilterGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+  gap: 10
+};
+
+const filterCell: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6
+};
+
+const filterLabel: CSSProperties = {
+  fontSize: 12,
+  color: "#d8b35e"
+};
+
+const filterInput: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: 8,
+  padding: "8px 10px",
+  background: "rgba(255,255,255,0.04)",
+  color: "#fff",
+  outline: "none"
+};
+
+const smallBtn: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: 8,
+  padding: "7px 9px",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#fff",
+  background: "rgba(255,255,255,0.06)"
+};
+
+const csvBtn: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: 8,
+  padding: "6px 10px",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#111",
+  background: "#ffd57a"
+};
+
 const toggleViewBtn = (active: boolean): CSSProperties => ({
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: 8,
@@ -1419,4 +1755,45 @@ const formatGameTime = (record: { timestamp?: { toDate?: () => Date } }) => {
     return dateFromTimestamp.toLocaleString();
   }
   return "-";
+};
+
+const getRecordDate = (record: { timestamp?: { toDate?: () => Date } }) => {
+  const dateFromTimestamp = record.timestamp?.toDate?.();
+  return dateFromTimestamp instanceof Date ? dateFromTimestamp : null;
+};
+
+const toInputDate = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const sanitizeFileName = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+const escapeCsvCell = (value: unknown) => {
+  const str = String(value ?? "");
+  if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
+    return `"${str.replace(/"/g, "\"\"")}"`;
+  }
+  return str;
+};
+
+const exportCsv = (filename: string, rows: Array<Record<string, unknown>>) => {
+  if (rows.length === 0) return;
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.join(","),
+    ...rows.map((row) => headers.map((header) => escapeCsvCell(row[header])).join(","))
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
