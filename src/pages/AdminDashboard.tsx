@@ -199,6 +199,7 @@ export default function AdminDashboard(): JSX.Element {
   const [gamesSearch, setGamesSearch] = useState("");
   const [gamesStartDate, setGamesStartDate] = useState("");
   const [gamesEndDate, setGamesEndDate] = useState("");
+  const [activityVisibleCount, setActivityVisibleCount] = useState<number>(120);
   const [downloadFormat, setDownloadFormat] = useState<"excel" | "pdf">("excel");
   const [drillDownloadFormat, setDrillDownloadFormat] = useState<"excel" | "pdf">("excel");
   const [drillSearch, setDrillSearch] = useState("");
@@ -208,6 +209,7 @@ export default function AdminDashboard(): JSX.Element {
     archiveMode: false
   });
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditVisibleCount, setAuditVisibleCount] = useState<number>(60);
   const [adminRoles, setAdminRoles] = useState<AdminRoleDoc[]>([]);
   const [newAdminEntryId, setNewAdminEntryId] = useState("");
   const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
@@ -638,8 +640,7 @@ export default function AdminDashboard(): JSX.Element {
 
     const q = query(
       collection(db, "adminAuditLogs"),
-      orderBy("timestamp", "desc"),
-      limit(40)
+      orderBy("timestamp", "desc")
     );
     const unsubAudit = onSnapshot(q, (snap) => {
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AuditLog[];
@@ -1083,7 +1084,7 @@ export default function AdminDashboard(): JSX.Element {
       toast.success(`Admin removed: ${entryId}`);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to remove admin");
+      toast.error(getErrorMessage(error, "Failed to remove admin"));
     }
   };
 
@@ -1207,7 +1208,7 @@ export default function AdminDashboard(): JSX.Element {
         { key: "activity", label: "Activity Monitor" },
         { key: "device_watch", label: "Device Watch" },
         { key: "games", label: "Games Votes" },
-        { key: "games_monitor", label: "Games Monitor" }
+        { key: "games_monitor", label: "Admin Monitor" }
       ]}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
@@ -1226,7 +1227,7 @@ export default function AdminDashboard(): JSX.Element {
                     ? "Device Watch"
                     : activeSection === "games"
                       ? "Games Votes"
-                      : "Games Monitor"
+                      : "Admin Monitor"
       }
       subtitle={`Live data updates from Firestore • ${authBadge}`}
       onLogout={handleLogout}
@@ -1375,7 +1376,7 @@ export default function AdminDashboard(): JSX.Element {
                   </tr>
                 )}
 
-                {activityLogs.slice(0, 120).map((log: ActivityLog) => (
+                {activityLogs.slice(0, activityVisibleCount).map((log: ActivityLog) => (
                   <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                     <td style={td}>{formatLogTime(log)}</td>
                     <td style={td}>{log.type ?? "-"}</td>
@@ -1402,6 +1403,16 @@ export default function AdminDashboard(): JSX.Element {
               </tbody>
             </table>
           </div>
+          {activityLogs.length > activityVisibleCount && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                style={toggleViewBtn(false)}
+                onClick={() => setActivityVisibleCount((count) => count + 120)}
+              >
+                Load more
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1925,23 +1936,26 @@ export default function AdminDashboard(): JSX.Element {
                 <span style={rolePillSuper}>Super Admin</span>
               </div>
               {adminRoles
-                .filter((r) => (r.entryId ?? "") !== SUPER_ADMIN_ENTRY_ID)
-                .map((admin) => (
-                  <div key={admin.id} style={adminAccessRow}>
-                    <span style={adminNameText}>
-                      {entryNameMap[admin.entryId ?? ""] ?? admin.entryId ?? "-"} ({admin.entryId ?? "-"})
-                    </span>
-                    <div style={controls}>
-                      <span style={rolePillAdmin}>Admin</span>
-                      {isSuperAdmin && (
-                        <button style={smallBtn} onClick={() => handleRemoveAdmin(admin.entryId ?? "")}>
-                        Remove
-                        </button>
-                      )}
+                .filter((r) => (r.entryId ?? r.id ?? "") !== SUPER_ADMIN_ENTRY_ID)
+                .map((admin) => {
+                  const adminEntryId = admin.entryId ?? admin.id ?? "";
+                  return (
+                    <div key={admin.id} style={adminAccessRow}>
+                      <span style={adminNameText}>
+                        {entryNameMap[adminEntryId] ?? adminEntryId || "-"} ({adminEntryId || "-"})
+                      </span>
+                      <div style={controls}>
+                        <span style={rolePillAdmin}>Admin</span>
+                        {isSuperAdmin && (
+                          <button style={smallBtn} onClick={() => handleRemoveAdmin(adminEntryId)}>
+                          Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              {adminRoles.filter((r) => (r.entryId ?? "") !== SUPER_ADMIN_ENTRY_ID).length === 0 && (
+                  );
+                })}
+              {adminRoles.filter((r) => (r.entryId ?? r.id ?? "") !== SUPER_ADMIN_ENTRY_ID).length === 0 && (
                 <p style={{ ...mutedText, marginTop: 4 }}>No additional admins added yet.</p>
               )}
             </div>
@@ -1979,7 +1993,7 @@ export default function AdminDashboard(): JSX.Element {
                     </tr>
                   </thead>
                   <tbody>
-                    {auditLogs.map((log) => (
+                    {auditLogs.slice(0, auditVisibleCount).map((log) => (
                       <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                         <td style={td}>{formatGameTime(log)}</td>
                         <td style={td}>{log.actor ?? "-"}</td>
@@ -1989,6 +2003,16 @@ export default function AdminDashboard(): JSX.Element {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {auditLogs.length > auditVisibleCount && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  style={smallBtn}
+                  onClick={() => setAuditVisibleCount((count) => count + 60)}
+                >
+                  Load more
+                </button>
               </div>
             )}
           </section>

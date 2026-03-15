@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "@/firebase";
 
 export default function useActivityLogs() {
@@ -8,8 +8,7 @@ export default function useActivityLogs() {
   useEffect(() => {
     const q = query(
       collection(db, "activityLogs"),
-      orderBy("timestamp", "desc"),
-      limit(300)
+      orderBy("timestamp", "desc")
     );
 
     const unsub = onSnapshot(
