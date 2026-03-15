@@ -1939,10 +1939,12 @@ export default function AdminDashboard(): JSX.Element {
                 .filter((r) => (r.entryId ?? r.id ?? "") !== SUPER_ADMIN_ENTRY_ID)
                 .map((admin) => {
                   const adminEntryId = admin.entryId ?? admin.id ?? "";
+                  const displayEntryId = adminEntryId || "-";
+                  const displayName = entryNameMap[adminEntryId] ?? displayEntryId;
                   return (
                     <div key={admin.id} style={adminAccessRow}>
                       <span style={adminNameText}>
-                        {entryNameMap[adminEntryId] ?? adminEntryId || "-"} ({adminEntryId || "-"})
+                        {displayName} ({displayEntryId})
                       </span>
                       <div style={controls}>
                         <span style={rolePillAdmin}>Admin</span>
