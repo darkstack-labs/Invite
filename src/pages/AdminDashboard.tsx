@@ -45,7 +45,7 @@ import {
   serverTimestamp,
   setDoc
 } from "firebase/firestore";
-import { db } from "@/firebase";
+import { db, ensureAnonymousAuth } from "@/firebase";
 import { guests, useAuth } from "@/contexts/AuthContext";
 import {
   Bar,
@@ -608,11 +608,25 @@ export default function AdminDashboard(): JSX.Element {
   }, [drilldownFilteredRows]);
 
   useEffect(() => {
-    const unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
-    const unsubDevices = subscribeBlockedDevices(setBlockedDeviceIds);
-    const unsubWarnings = subscribeGuestWarnings(setGuestWarnings);
+    let unsubEntries = () => {};
+    let unsubDevices = () => {};
+    let unsubWarnings = () => {};
+    let cancelled = false;
+
+    ensureAnonymousAuth()
+      .then(() => {
+        if (cancelled) return;
+        unsubEntries = subscribeBlockedEntries(setBlockedEntryIds);
+        unsubDevices = subscribeBlockedDevices(setBlockedDeviceIds);
+        unsubWarnings = subscribeGuestWarnings(setGuestWarnings);
+      })
+      .catch((error) => {
+        console.error("Admin moderation subscriptions failed", error);
+        toast.error(getErrorMessage(error, "Failed to sync admin controls"));
+      });
 
     return () => {
+      cancelled = true;
       unsubEntries();
       unsubDevices();
       unsubWarnings();
@@ -622,45 +636,88 @@ export default function AdminDashboard(): JSX.Element {
   useEffect(() => {
     if (activeSection !== "games" && activeSection !== "games_monitor") return;
 
-    const controlsRef = doc(db, "adminControls", "gamesResults");
-    const unsubControl = onSnapshot(controlsRef, (snap) => {
-      if (!snap.exists()) {
-        setGovernanceState({ finalized: false, archiveMode: false });
-        return;
-      }
-      const data = snap.data() as GovernanceState;
-      setGovernanceState({
-        finalized: !!data.finalized,
-        finalizedAt: data.finalizedAt,
-        finalizedBy: data.finalizedBy,
-        signature: data.signature,
-        archiveMode: !!data.archiveMode
-      });
-    });
+    let unsubControl = () => {};
+    let unsubAudit = () => {};
+    let cancelled = false;
 
-    const q = query(
-      collection(db, "adminAuditLogs"),
-      orderBy("timestamp", "desc")
-    );
-    const unsubAudit = onSnapshot(q, (snap) => {
-      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AuditLog[];
-      setAuditLogs(rows);
-    });
+    ensureAnonymousAuth()
+      .then(() => {
+        if (cancelled) return;
+        const controlsRef = doc(db, "adminControls", "gamesResults");
+        unsubControl = onSnapshot(controlsRef, (snap) => {
+          if (!snap.exists()) {
+            setGovernanceState({ finalized: false, archiveMode: false });
+            return;
+          }
+          const data = snap.data() as GovernanceState;
+          setGovernanceState({
+            finalized: !!data.finalized,
+            finalizedAt: data.finalizedAt,
+            finalizedBy: data.finalizedBy,
+            signature: data.signature,
+            archiveMode: !!data.archiveMode
+          });
+        });
+
+        const q = query(
+          collection(db, "adminAuditLogs"),
+          orderBy("timestamp", "desc")
+        );
+        unsubAudit = onSnapshot(q, (snap) => {
+          const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AuditLog[];
+          setAuditLogs(rows);
+        });
+      })
+      .catch((error) => {
+        console.error("Admin monitor subscriptions failed", error);
+        toast.error(getErrorMessage(error, "Failed to sync admin monitor"));
+      });
 
     return () => {
+      cancelled = true;
       unsubControl();
       unsubAudit();
     };
   }, [activeSection]);
 
   useEffect(() => {
-    const q = query(collection(db, "adminRoles"), orderBy("timestamp", "desc"), limit(80));
-    const unsub = onSnapshot(q, (snap) => {
-      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AdminRoleDoc[];
-      setAdminRoles(rows);
-    });
-    return () => unsub();
+    let unsub = () => {};
+    let cancelled = false;
+
+    ensureAnonymousAuth()
+      .then(() => {
+        if (cancelled) return;
+        const q = query(collection(db, "adminRoles"), orderBy("timestamp", "desc"), limit(80));
+        unsub = onSnapshot(q, (snap) => {
+          const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as AdminRoleDoc[];
+          setAdminRoles(rows);
+        });
+      })
+      .catch((error) => {
+        console.error("Admin roles subscription failed", error);
+        toast.error(getErrorMessage(error, "Failed to load admin roles"));
+      });
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    const storedEntryId = localStorage.getItem("admin-entry-id")?.trim() ?? "";
+    if (!storedEntryId) {
+      localStorage.removeItem("admin-auth");
+      setAuthenticated(false);
+      setAdminSessionEntryId("");
+      toast.error("Admin session expired. Please log in again.");
+      return;
+    }
+    if (storedEntryId !== adminSessionEntryId) {
+      setAdminSessionEntryId(storedEntryId);
+    }
+  }, [authenticated, adminSessionEntryId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
