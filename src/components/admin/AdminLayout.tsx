@@ -56,7 +56,7 @@ export default function AdminLayout({
   };
 
   return (
-    <div style={shell}>
+    <div style={{ ...shell, ...(isDesktop ? {} : shellMobile) }}>
       {!isDesktop && openSidebar && (
         <button
           onClick={() => setOpenSidebar(false)}
@@ -148,6 +148,10 @@ const shell: CSSProperties = {
   position: "relative"
 };
 
+const shellMobile: CSSProperties = {
+  flexDirection: "column"
+};
+
 const overlay: CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -211,11 +215,14 @@ const navItemActive: CSSProperties = {
 
 const content: CSSProperties = {
   width: "100%",
-  padding: 20
+  padding: 20,
+  minWidth: 0,
+  overflowX: "hidden"
 };
 
 const contentMobile: CSSProperties = {
-  padding: 14
+  padding: 12,
+  maxWidth: "100%"
 };
 
 const contentDesktop: CSSProperties = {
@@ -242,7 +249,8 @@ const topBarMobile: CSSProperties = {
   padding: "12px 12px 10px",
   borderRadius: 12,
   backdropFilter: "blur(8px)",
-  alignItems: "flex-start"
+  alignItems: "flex-start",
+  flexDirection: "column"
 };
 
 const topActions: CSSProperties = {
@@ -254,7 +262,8 @@ const topActions: CSSProperties = {
 const topActionsMobile: CSSProperties = {
   width: "100%",
   justifyContent: "space-between",
-  marginTop: 6
+  marginTop: 6,
+  flexWrap: "wrap"
 };
 
 const menuButton: CSSProperties = {

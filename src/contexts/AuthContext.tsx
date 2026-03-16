@@ -71,17 +71,18 @@ export const guestProfiles: Record<string, GuestProfile> = {
   "2416": { name: "Shlok_mishra", entryId: "2416", gender: "Male" },
   "2426": { name: "Rohan", entryId: "2426", gender: "Male" },
   "2436": { name: "Anshuman", entryId: "2436", gender: "Male" },
-  "2446": { name: "Darsh", entryId: "2446", gender: "Male" },
+  "2446": { name: "Youshita", entryId: "2446", gender: "Female" },
   "2456": { name: "Ayushman", entryId: "2456", gender: "Male" },
   "2466": { name: "Jasmine", entryId: "2466", gender: "Female" },
-  "2476": { name: "Atul_agarwal", entryId: "2476", gender: "Male" },
+  "2476": { name: "Gurpreet", entryId: "2476", gender: "Male" },
   "2486": { name: "Ayushi_das", entryId: "2486", gender: "Female" },
   "2496": { name: "Anushka", entryId: "2496", gender: "Female" },
   "2506": { name: "Anusha", entryId: "2506", gender: "Female" },
   "2516": { name: "Alankrita", entryId: "2516", gender: "Female" },
   "2526": { name: "Anubhav", entryId: "2526", gender: "Male" },
   "2536": { name: "Dipanita", entryId: "2536", gender: "Female" },
-  "2546": { name: "Vipul", entryId: "2546", gender: "Male" }
+  "2546": { name: "Vipul", entryId: "2546", gender: "Male" },
+  "2556": { name: "Niranjan", entryId: "2556", gender: "Male" }
 };
 
 export const guests: Record<string, string> = Object.fromEntries(

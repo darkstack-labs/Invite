@@ -213,6 +213,9 @@ export default function AdminDashboard(): JSX.Element {
   const [adminRoles, setAdminRoles] = useState<AdminRoleDoc[]>([]);
   const [newAdminEntryId, setNewAdminEntryId] = useState("");
   const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== "undefined" ? window.innerWidth < 900 : false
+  );
   const entryNameMap = useMemo(() => {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
     return Object.fromEntries(pairs) as Record<string, string>;
@@ -226,6 +229,18 @@ export default function AdminDashboard(): JSX.Element {
   const isSuperAdmin = currentEntryId === SUPER_ADMIN_ENTRY_ID;
   const isAdmin = isSuperAdmin || !!adminRoleMap[currentEntryId];
   const authBadge = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Viewer";
+  const overviewGridStyle = isMobile
+    ? { ...overviewGrid, gridTemplateColumns: "1fr" }
+    : overviewGrid;
+  const panelStyle = isMobile ? { ...panel, padding: 12 } : panel;
+  const activityTableStyle = isMobile ? { ...activityTable, minWidth: 0 } : activityTable;
+  const controlsStyle = isMobile
+    ? { ...controls, flexDirection: "column", alignItems: "stretch" }
+    : controls;
+  const chipWrapStyle = isMobile
+    ? { ...chipWrap, flexDirection: "column", alignItems: "stretch" }
+    : chipWrap;
+  const searchInputStyle = isMobile ? { ...searchInput, maxWidth: "100%" } : searchInput;
 
   const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === "object" && error !== null) {
@@ -608,6 +623,14 @@ export default function AdminDashboard(): JSX.Element {
   }, [drilldownFilteredRows]);
 
   useEffect(() => {
+    const onResize = () => {
+      setIsMobile(window.innerWidth < 900);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
     let unsubEntries = () => {};
     let unsubDevices = () => {};
     let unsubWarnings = () => {};
@@ -826,7 +849,7 @@ export default function AdminDashboard(): JSX.Element {
     const hasActiveWarning = !!warning?.isActive;
 
     return (
-      <div style={controls}>
+      <div style={controlsStyle}>
         <button
           style={blockBtn(blockedEntryIds.has(entryId))}
           onClick={() => handleToggleEntryBlock(entryId, name)}
@@ -1293,8 +1316,8 @@ export default function AdminDashboard(): JSX.Element {
         <>
           <AdminStats stats={stats} />
 
-          <div style={overviewGrid}>
-            <section style={panel}>
+          <div style={overviewGridStyle}>
+            <section style={panelStyle}>
               <h3 style={panelTitle}>Latest RSVP</h3>
               {recentRSVPs.length === 0 ? (
                 <p style={mutedText}>No RSVP yet.</p>
@@ -1310,7 +1333,7 @@ export default function AdminDashboard(): JSX.Element {
               )}
             </section>
 
-            <section style={panel}>
+            <section style={panelStyle}>
               <h3 style={panelTitle}>Recent Songs</h3>
               {recentSongs.length === 0 ? (
                 <p style={mutedText}>No song requests yet.</p>
@@ -1324,7 +1347,7 @@ export default function AdminDashboard(): JSX.Element {
               )}
             </section>
 
-            <section style={panel}>
+            <section style={panelStyle}>
               <h3 style={panelTitle}>Recent Suggestions</h3>
               {recentSuggestions.length === 0 ? (
                 <p style={mutedText}>No suggestions yet.</p>
@@ -1338,7 +1361,7 @@ export default function AdminDashboard(): JSX.Element {
               )}
             </section>
 
-            <section style={panel}>
+            <section style={panelStyle}>
               <h3 style={panelTitle}>Suspicious Devices</h3>
               {suspiciousDevices.length === 0 ? (
                 <p style={mutedText}>No device has logged multiple accounts yet.</p>
@@ -1355,13 +1378,13 @@ export default function AdminDashboard(): JSX.Element {
             </section>
           </div>
 
-          <section style={{ ...panel, marginTop: 16 }}>
+          <section style={{ ...panelStyle, marginTop: 16 }}>
             <h3 style={panelTitle}>Recent Suspicious Activity</h3>
             {suspiciousEvents.length === 0 ? (
               <p style={mutedText}>No suspicious recent events.</p>
             ) : (
               <div style={activityTableWrap}>
-                <table style={activityTable}>
+                <table style={activityTableStyle}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
                       <th style={th}>Time</th>
@@ -1400,7 +1423,7 @@ export default function AdminDashboard(): JSX.Element {
               placeholder="Search guest by name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={searchInput}
+              style={searchInputStyle}
             />
           </div>
           <RSVPTable guests={filteredGuests} />
@@ -1410,11 +1433,11 @@ export default function AdminDashboard(): JSX.Element {
       {activeSection === "songs" && <SongsTable songs={songs} onDelete={handleDeleteSong} />}
       {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} />}
       {activeSection === "activity" && (
-        <div style={panel}>
+        <div style={panelStyle}>
           <h3 style={panelTitle}>Recent Activity Logs</h3>
 
           <div style={activityTableWrap}>
-            <table style={activityTable}>
+            <table style={activityTableStyle}>
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
                   <th style={th}>Time</th>
@@ -1442,7 +1465,7 @@ export default function AdminDashboard(): JSX.Element {
                     <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
                     <td style={td}>{log.details || "-"}</td>
                     <td style={td}>
-                      <div style={controls}>
+                      <div style={controlsStyle}>
                         {log.entryId && renderGuestModerationControls(log.entryId, log.name)}
                         {log.deviceId && (
                           <button
@@ -1474,14 +1497,14 @@ export default function AdminDashboard(): JSX.Element {
       )}
 
       {activeSection === "device_watch" && (
-        <div style={panel}>
+        <div style={panelStyle}>
           <h3 style={panelTitle}>All Devices (Manual Block Controls)</h3>
 
           {allDevices.length === 0 ? (
             <p style={mutedText}>No device logs found yet.</p>
           ) : (
             <div style={activityTableWrap}>
-              <table style={activityTable}>
+              <table style={activityTableStyle}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
                     <th style={th}>Device</th>
@@ -1496,7 +1519,7 @@ export default function AdminDashboard(): JSX.Element {
                     <tr key={device.deviceId} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                       <td style={td}>{shortDevice(device.deviceId)}</td>
                       <td style={td}>
-                        <div style={chipWrap}>
+                        <div style={chipWrapStyle}>
                           {device.accountPairs.map((item) => (
                             <div key={item.entryId}>
                               {renderGuestModerationControls(item.entryId, item.name)}
@@ -1533,7 +1556,7 @@ export default function AdminDashboard(): JSX.Element {
               <h3 style={panelTitle}>Games Analytics</h3>
               <p style={mutedText}>Visual stats, advanced filters, and drill-down voter details</p>
             </div>
-            <div style={controls}>
+            <div style={controlsStyle}>
               <button
                 style={toggleViewBtn(gamesView === "analytics")}
                 onClick={() => setGamesView("analytics")}
@@ -1559,7 +1582,7 @@ export default function AdminDashboard(): JSX.Element {
             </div>
           </section>
 
-          <section style={panel}>
+          <section style={panelStyle}>
             <div style={gamesFilterGrid}>
               <div style={filterCell}>
                 <label style={filterLabel}>Category</label>
@@ -1614,7 +1637,7 @@ export default function AdminDashboard(): JSX.Element {
               </div>
 
               <div style={{ ...filterCell, justifyContent: "flex-end" }}>
-                <div style={controls}>
+                <div style={controlsStyle}>
                   <button style={smallBtn} onClick={() => applyDatePreset("today")}>Today</button>
                   <button style={smallBtn} onClick={() => applyDatePreset("last7")}>Last 7 Days</button>
                   <button style={smallBtn} onClick={() => applyDatePreset("all")}>Clear Dates</button>
@@ -1625,8 +1648,8 @@ export default function AdminDashboard(): JSX.Element {
 
           {gamesView === "analytics" && (
             <>
-              <section style={overviewGrid}>
-                <div style={panel}>
+              <section style={overviewGridStyle}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>Participation</h3>
                   <div style={{ display: "grid", gap: 8 }}>
                     <div style={statRow}>
@@ -1644,7 +1667,7 @@ export default function AdminDashboard(): JSX.Element {
                   </div>
                 </div>
 
-                <div style={panel}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>Self Nomination Mix</h3>
                   <ChartDonut
                     data={gamesStats.selfNominationCounts}
@@ -1654,8 +1677,8 @@ export default function AdminDashboard(): JSX.Element {
                 </div>
               </section>
 
-              <section style={overviewGrid}>
-                <div style={panel}>
+              <section style={overviewGridStyle}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>Most Popular Male</h3>
                   <ChartBars
                     data={gamesStats.categories.mpm.ranking.slice(0, 8)}
@@ -1666,7 +1689,7 @@ export default function AdminDashboard(): JSX.Element {
                     }}
                   />
                 </div>
-                <div style={panel}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>Most Popular Female</h3>
                   <ChartBars
                     data={gamesStats.categories.mpf.ranking.slice(0, 8)}
@@ -1679,8 +1702,8 @@ export default function AdminDashboard(): JSX.Element {
                 </div>
               </section>
 
-              <section style={overviewGrid}>
-                <div style={panel}>
+              <section style={overviewGridStyle}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>A Couple You Ship</h3>
                   <ChartDonut
                     data={gamesStats.categories.cys.ranking.slice(0, 8)}
@@ -1691,7 +1714,7 @@ export default function AdminDashboard(): JSX.Element {
                     }}
                   />
                 </div>
-                <div style={panel}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>Someone Who Doesn't Belong</h3>
                   <ChartDonut
                     data={gamesStats.categories.swdbitp.ranking.slice(0, 8)}
@@ -1704,8 +1727,8 @@ export default function AdminDashboard(): JSX.Element {
                 </div>
               </section>
 
-              <section style={overviewGrid}>
-                <div style={panel}>
+              <section style={overviewGridStyle}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>Best Male Duo</h3>
                   <ChartBars
                     data={gamesStats.categories.bmd.ranking.slice(0, 8)}
@@ -1716,7 +1739,7 @@ export default function AdminDashboard(): JSX.Element {
                     }}
                   />
                 </div>
-                <div style={panel}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>Best Female Duo</h3>
                   <ChartBars
                     data={gamesStats.categories.bfd.ranking.slice(0, 8)}
@@ -1733,11 +1756,11 @@ export default function AdminDashboard(): JSX.Element {
 
           {gamesView === "tables" && (
             <>
-              <section style={panel}>
+              <section style={panelStyle}>
                 <h3 style={panelTitle}>Self Nominations</h3>
                 <p style={mutedText}>Grouped by category</p>
 
-                <div style={overviewGrid}>
+                <div style={overviewGridStyle}>
                   {Object.entries(nominationCategoryLabels).map(([key, label]) => {
                     const names = nominationGroups[key] ?? [];
                     return (
@@ -1762,10 +1785,10 @@ export default function AdminDashboard(): JSX.Element {
                 </div>
               </section>
 
-              <section style={panel}>
+              <section style={panelStyle}>
                 <h3 style={panelTitle}>CYS Votes</h3>
                 <div style={activityTableWrap}>
-                  <table style={activityTable}>
+                  <table style={activityTableStyle}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
                         <th style={th}>Time</th>
@@ -1793,31 +1816,31 @@ export default function AdminDashboard(): JSX.Element {
                 </div>
               </section>
 
-              <section style={overviewGrid}>
-                <div style={panel}>
+              <section style={overviewGridStyle}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>MPM Votes</h3>
                   <VoteTable rows={rowsByCategory.mpm} emptyLabel="No MPM votes yet." />
                 </div>
 
-                <div style={panel}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>MPF Votes</h3>
                   <VoteTable rows={rowsByCategory.mpf} emptyLabel="No MPF votes yet." />
                 </div>
               </section>
 
-              <section style={overviewGrid}>
-                <div style={panel}>
+              <section style={overviewGridStyle}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>BMD Votes</h3>
                   <DuoVoteTable rows={rowsByCategory.bmd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BMD votes yet." />
                 </div>
 
-                <div style={panel}>
+                <div style={panelStyle}>
                   <h3 style={panelTitle}>BFD Votes</h3>
                   <DuoVoteTable rows={rowsByCategory.bfd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BFD votes yet." />
                 </div>
               </section>
 
-              <section style={panel}>
+              <section style={panelStyle}>
                 <h3 style={panelTitle}>SWDBITP Votes</h3>
                 <VoteTable rows={rowsByCategory.swdbitp} emptyLabel="No SWDBITP votes yet." />
               </section>
@@ -1829,7 +1852,7 @@ export default function AdminDashboard(): JSX.Element {
               <div style={modalCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <h3 style={{ ...panelTitle, marginBottom: 0 }}>{drilldown.title}</h3>
-                  <div style={controls}>
+                  <div style={controlsStyle}>
                     <Select value={drillDownloadFormat} onValueChange={(v) => setDrillDownloadFormat(v as "excel" | "pdf")}>
                       <SelectTrigger className="w-[110px] h-9 bg-black/40 border-gold/30 text-champagne">
                         <SelectValue placeholder="Format" />
@@ -1861,7 +1884,7 @@ export default function AdminDashboard(): JSX.Element {
                   ))}
                 </div>
                 <div style={activityTableWrap}>
-                  <table style={activityTable}>
+                  <table style={activityTableStyle}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
                         <th style={th}>Voter</th>
@@ -1916,11 +1939,11 @@ export default function AdminDashboard(): JSX.Element {
 
       {activeSection === "games_monitor" && (
         <div style={{ display: "grid", gap: 16 }}>
-          <section style={overviewGrid}>
-            <div style={panel}>
+          <section style={overviewGridStyle}>
+            <div style={panelStyle}>
               <h3 style={panelTitle}>Download Center</h3>
               <p style={mutedText}>Export report files without CSV clutter</p>
-              <div style={controls}>
+              <div style={controlsStyle}>
                 <Select value={downloadFormat} onValueChange={(v) => setDownloadFormat(v as "excel" | "pdf")}>
                   <SelectTrigger className="w-[120px] h-9 bg-black/40 border-gold/30 text-champagne">
                     <SelectValue placeholder="Format" />
@@ -1934,7 +1957,7 @@ export default function AdminDashboard(): JSX.Element {
               </div>
             </div>
 
-            <div style={panel}>
+            <div style={panelStyle}>
               <h3 style={panelTitle}>Governance</h3>
               <p style={mutedTextSmall}>Control result finalization and archive mode.</p>
               <div style={{ display: "grid", gap: 8 }}>
@@ -1952,7 +1975,7 @@ export default function AdminDashboard(): JSX.Element {
                   placeholder="Signature to finalize"
                   style={filterInput}
                 />
-                <div style={controls}>
+                <div style={controlsStyle}>
                   <button style={csvBtn} onClick={handleFinalizeResults}>Finalize Results</button>
                   <button style={smallBtn} onClick={handleUnfinalizeResults}>Unfinalize</button>
                   <button style={smallBtn} onClick={handleToggleArchiveMode}>
@@ -1968,7 +1991,7 @@ export default function AdminDashboard(): JSX.Element {
             </div>
           </section>
 
-          <section style={panel}>
+          <section style={panelStyle}>
             <h3 style={panelTitle}>Admin Access</h3>
             <p style={mutedTextSmall}>
               Add admin Entry IDs. Super admin is fixed to {SUPER_ADMIN_ENTRY_ID}.
@@ -2003,7 +2026,7 @@ export default function AdminDashboard(): JSX.Element {
                       <span style={adminNameText}>
                         {displayName} ({displayEntryId})
                       </span>
-                      <div style={controls}>
+                      <div style={controlsStyle}>
                         <span style={rolePillAdmin}>Admin</span>
                         {isSuperAdmin && (
                           <button style={smallBtn} onClick={() => handleRemoveAdmin(adminEntryId)}>
@@ -2020,12 +2043,12 @@ export default function AdminDashboard(): JSX.Element {
             </div>
           </section>
 
-          <section style={panel}>
+          <section style={panelStyle}>
             <h3 style={panelTitle}>Suspicious Pattern Insights</h3>
             {suspiciousVoteInsights.length === 0 ? (
               <p style={mutedText}>No suspicious patterns detected for current filters.</p>
             ) : (
-              <div style={overviewGrid}>
+              <div style={overviewGridStyle}>
                 {suspiciousVoteInsights.map((item) => (
                   <div key={item.id} style={miniPanel}>
                     <h4 style={miniPanelTitle}>{item.title}</h4>
@@ -2036,13 +2059,13 @@ export default function AdminDashboard(): JSX.Element {
             )}
           </section>
 
-          <section style={panel}>
+          <section style={panelStyle}>
             <h3 style={panelTitle}>Admin Action Log</h3>
             {auditLogs.length === 0 ? (
               <p style={mutedText}>No admin actions logged yet.</p>
             ) : (
               <div style={activityTableWrap}>
-                <table style={activityTable}>
+                <table style={activityTableStyle}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
                       <th style={th}>Time</th>
@@ -2093,7 +2116,7 @@ function VoteTable({
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={activityTableWrap}>
-        <table style={activityTable}>
+        <table style={activityTableStyle}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
               <th style={th}>Time</th>
@@ -2144,7 +2167,7 @@ function DuoVoteTable({
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={activityTableWrap}>
-        <table style={activityTable}>
+        <table style={activityTableStyle}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
               <th style={th}>Time</th>
