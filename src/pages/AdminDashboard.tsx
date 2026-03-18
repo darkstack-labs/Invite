@@ -1920,6 +1920,20 @@ export default function AdminDashboard(): JSX.Element {
                     <button style={smallBtn} onClick={() => setDrillSearch("")}>Clear</button>
                   </div>
 
+                  {drillTopVoters.length > 0 && (
+                    <div style={{ ...controlsStyle, marginTop: 10 }}>
+                      {drillTopVoters.map((voter) => (
+                        <button
+                          key={voter.entryId}
+                          style={smallBtn}
+                          onClick={() => setDrillSearch(voter.entryId)}
+                        >
+                          {voter.name} ({voter.count})
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                     {drilldownFilteredRows.map((row, index) => (
                       <div key={`${row.voterEntryId}-${index}`} style={rowCompact}>
@@ -2175,6 +2189,30 @@ export default function AdminDashboard(): JSX.Element {
         <>
       {activeSection === "overview" && (
         <>
+          <section style={desktopHero}>
+            <div style={desktopHeroCopyWrap}>
+              <p style={desktopHeroEyebrow}>Admin Dashboard</p>
+              <h2 style={desktopHeroTitle}>Live event overview with cleaner desktop density</h2>
+              <p style={desktopHeroText}>
+                Track RSVP momentum, moderation risk, and guest activity from the same command surface used on mobile.
+              </p>
+            </div>
+            <div style={desktopHeroMeta}>
+              <div style={desktopHeroBadgeCard}>
+                <span style={desktopHeroBadgeLabel}>Current Role</span>
+                <strong style={desktopHeroBadgeValue}>{authBadge}</strong>
+              </div>
+              <div style={desktopHeroBadgeCard}>
+                <span style={desktopHeroBadgeLabel}>Suspicious Devices</span>
+                <strong style={desktopHeroBadgeValue}>{suspiciousDevices.length}</strong>
+              </div>
+              <div style={desktopHeroBadgeCard}>
+                <span style={desktopHeroBadgeLabel}>Watchlist Events</span>
+                <strong style={desktopHeroBadgeValue}>{suspiciousEvents.length}</strong>
+              </div>
+            </div>
+          </section>
+
           <AdminStats stats={stats} />
 
           <div style={overviewGridStyle}>
@@ -2412,10 +2450,11 @@ export default function AdminDashboard(): JSX.Element {
 
       {activeSection === "games" && (
         <div style={{ display: "grid", gap: 16 }}>
-          <section style={{ ...panel, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <section style={desktopGamesHero}>
             <div>
-              <h3 style={panelTitle}>Games Analytics</h3>
-              <p style={mutedText}>Visual stats, advanced filters, and drill-down voter details</p>
+              <p style={mobileSectionEyebrow}>Games Intelligence</p>
+              <h3 style={{ ...panelTitle, marginBottom: 6 }}>Games Analytics</h3>
+              <p style={mutedText}>Visual stats, advanced filters, and drill-down voter details.</p>
             </div>
             <div style={controlsStyle}>
               <button
@@ -3479,6 +3518,91 @@ const modalCard: CSSProperties = {
   borderRadius: 14,
   background: "#111418",
   padding: 14
+};
+
+const desktopHero: CSSProperties = {
+  border: "1px solid rgba(255,213,122,0.18)",
+  borderRadius: 20,
+  padding: "20px 22px",
+  marginBottom: 18,
+  background:
+    "linear-gradient(140deg, rgba(255,213,122,0.15) 0%, rgba(255,140,66,0.08) 28%, rgba(255,255,255,0.03) 68%, rgba(10,12,16,0.9) 100%)",
+  boxShadow: "0 18px 42px rgba(0,0,0,0.22)",
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1.4fr) minmax(280px, 0.9fr)",
+  gap: 18,
+  alignItems: "stretch"
+};
+
+const desktopHeroCopyWrap: CSSProperties = {
+  display: "grid",
+  gap: 8,
+  alignContent: "start"
+};
+
+const desktopHeroEyebrow: CSSProperties = {
+  margin: 0,
+  fontSize: 11,
+  letterSpacing: 1.4,
+  textTransform: "uppercase",
+  color: "#f5c768",
+  fontWeight: 800
+};
+
+const desktopHeroTitle: CSSProperties = {
+  margin: 0,
+  fontSize: 30,
+  lineHeight: 1.08,
+  color: "#fff7df"
+};
+
+const desktopHeroText: CSSProperties = {
+  margin: 0,
+  color: "#c9d0d8",
+  fontSize: 14,
+  lineHeight: 1.6,
+  maxWidth: 620
+};
+
+const desktopHeroMeta: CSSProperties = {
+  display: "grid",
+  gap: 10,
+  alignContent: "stretch"
+};
+
+const desktopHeroBadgeCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 16,
+  background: "rgba(10,12,16,0.36)",
+  padding: "14px 16px",
+  display: "grid",
+  gap: 6
+};
+
+const desktopHeroBadgeLabel: CSSProperties = {
+  color: "#9ba4ae",
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: 0.9
+};
+
+const desktopHeroBadgeValue: CSSProperties = {
+  color: "#fff",
+  fontSize: 24,
+  lineHeight: 1.1
+};
+
+const desktopGamesHero: CSSProperties = {
+  ...panel,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: 14,
+  borderRadius: 18,
+  padding: 18,
+  background:
+    "linear-gradient(140deg, rgba(255,213,122,0.12) 0%, rgba(255,140,66,0.06) 25%, rgba(255,255,255,0.03) 75%)"
 };
 
 const mobilePage: CSSProperties = {
