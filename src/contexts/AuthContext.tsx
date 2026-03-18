@@ -82,7 +82,8 @@ export const guestProfiles: Record<string, GuestProfile> = {
   "2526": { name: "Anubhav", entryId: "2526", gender: "Male" },
   "2536": { name: "Dipanita", entryId: "2536", gender: "Female" },
   "2546": { name: "Vipul", entryId: "2546", gender: "Male" },
-  "2556": { name: "Niranjan", entryId: "2556", gender: "Male" }
+  "2556": { name: "Niranjan", entryId: "2556", gender: "Male" },
+  "2566": { name: "Gurpreet", entryId: "2566", gender: "Male" }
 };
 
 export const guests: Record<string, string> = Object.fromEntries(

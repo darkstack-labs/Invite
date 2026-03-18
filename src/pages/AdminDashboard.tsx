@@ -10,6 +10,7 @@ import useSongs from "../hooks/useSongs";
 import useSuggestions from "../hooks/useSuggestions";
 import useActivityLogs from "../hooks/useActivityLogs";
 import useGamesAdminData from "../hooks/useGamesAdminData";
+import { useIsMobile } from "@/hooks/useDeviceType";
 import {
   Select,
   SelectContent,
@@ -213,9 +214,7 @@ export default function AdminDashboard(): JSX.Element {
   const [adminRoles, setAdminRoles] = useState<AdminRoleDoc[]>([]);
   const [newAdminEntryId, setNewAdminEntryId] = useState("");
   const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
-  const [isMobile, setIsMobile] = useState<boolean>(
-    typeof window !== "undefined" ? window.innerWidth < 900 : false
-  );
+  const isMobile = useIsMobile();
   const entryNameMap = useMemo(() => {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
     return Object.fromEntries(pairs) as Record<string, string>;
@@ -229,20 +228,22 @@ export default function AdminDashboard(): JSX.Element {
   const isSuperAdmin = currentEntryId === SUPER_ADMIN_ENTRY_ID;
   const isAdmin = isSuperAdmin || !!adminRoleMap[currentEntryId];
   const authBadge = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Viewer";
-  const overviewGridStyle = isMobile
-    ? { ...overviewGrid, gridTemplateColumns: "1fr", gap: 10 }
-    : overviewGrid;
-  const panelStyle = isMobile ? { ...panel, padding: 10 } : panel;
-  const activityTableStyle = isMobile ? { ...activityTable, minWidth: 640 } : activityTable;
-  const controlsStyle = isMobile
-    ? { ...controls, flexWrap: "wrap", width: "100%", gap: 8 }
-    : controls;
-  const chipWrapStyle = isMobile
-    ? { ...chipWrap, flexDirection: "column", alignItems: "stretch", gap: 8 }
-    : chipWrap;
-  const searchInputStyle = isMobile
-    ? { ...searchInput, maxWidth: "100%", padding: "9px 10px", fontSize: 13 }
-    : searchInput;
+  const overviewGridStyle = isMobile ? mobileOverviewGrid : overviewGrid;
+  const panelStyle = isMobile ? mobilePanel : panel;
+  const activityTableStyle = isMobile ? mobileActivityTable : activityTable;
+  const controlsStyle = isMobile ? mobileControls : controls;
+  const chipWrapStyle = isMobile ? mobileChipWrap : chipWrap;
+  const searchInputStyle = isMobile ? mobileSearchInput : searchInput;
+
+  const mobileOverviewGrid = { ...overviewGrid, gridTemplateColumns: "1fr", gap: 12 };
+  const mobilePanel = { ...panel, padding: 12 };
+  const mobileActivityTable = { ...activityTable, minWidth: 640 };
+  const mobileControls = { ...controls, flexWrap: "wrap", width: "100%", gap: 8 };
+  const mobileChipWrap = { ...chipWrap, flexDirection: "column", alignItems: "stretch", gap: 8 };
+  const mobileSearchInput = { ...searchInput, maxWidth: "100%", padding: "9px 10px", fontSize: 13 };
+  const mobileFilterGrid = { ...gamesFilterGrid, gridTemplateColumns: "1fr", gap: 10 };
+  const mobileStack = { display: "grid", gap: 12 };
+  const filterGridStyle = isMobile ? mobileFilterGrid : gamesFilterGrid;
 
   const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === "object" && error !== null) {
@@ -735,14 +736,6 @@ export default function AdminDashboard(): JSX.Element {
       setAdminSessionEntryId(storedEntryId);
     }
   }, [authenticated, adminSessionEntryId]);
-
-  useEffect(() => {
-    const onResize = () => {
-      setIsMobile(window.innerWidth < 900);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1280,6 +1273,745 @@ export default function AdminDashboard(): JSX.Element {
 
   /* ---------------- DASHBOARD ---------------- */
 
+  const renderMobileContent = () => {
+    switch (activeSection) {
+      case "overview":
+        return (
+          <div style={mobileStack}>
+            <AdminStats stats={stats} />
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Latest RSVP</h3>
+              {recentRSVPs.length === 0 ? (
+                <p style={mutedText}>No RSVP yet.</p>
+              ) : (
+                recentRSVPs.map((r: RSVP) => (
+                  <div key={r.id} style={row}>
+                    <span>{r.name ?? "Unknown"}</span>
+                    <span style={badge(r.attendance === "yes" ? "#2ecc71" : "#ff6666")}>
+                      {r.attendance === "yes" ? "Attending" : "Not Attending"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Recent Songs</h3>
+              {recentSongs.length === 0 ? (
+                <p style={mutedText}>No song requests yet.</p>
+              ) : (
+                recentSongs.map((s: any) => (
+                  <div key={s.id} style={row}>
+                    <span>{s.songName ?? "-"}</span>
+                    <span style={mutedTextSmall}>{s.name ?? "Unknown"}</span>
+                  </div>
+                ))
+              )}
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Recent Suggestions</h3>
+              {recentSuggestions.length === 0 ? (
+                <p style={mutedText}>No suggestions yet.</p>
+              ) : (
+                recentSuggestions.map((s: any) => (
+                  <div key={s.id} style={row}>
+                    <span style={mutedTextSmall}>{s.name ?? "Unknown"}</span>
+                    <span style={truncateText}>{s.suggestion ?? "-"}</span>
+                  </div>
+                ))
+              )}
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Suspicious Devices</h3>
+              {suspiciousDevices.length === 0 ? (
+                <p style={mutedText}>No device has logged multiple accounts yet.</p>
+              ) : (
+                suspiciousDevices.slice(0, 4).map((device) => (
+                  <div key={device.deviceId} style={row}>
+                    <span style={mutedTextSmall}>{shortDevice(device.deviceId)}</span>
+                    <span style={badge(blockedDeviceIds.has(device.deviceId) ? "#ff4d4f" : "#ff8c42")}>
+                      {blockedDeviceIds.has(device.deviceId) ? "Blocked" : `${device.accounts.length} accounts`}
+                    </span>
+                  </div>
+                ))
+              )}
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Recent Suspicious Activity</h3>
+              {suspiciousEvents.length === 0 ? (
+                <p style={mutedText}>No suspicious recent events.</p>
+              ) : (
+                <div style={activityTableWrap}>
+                  <table style={activityTableStyle}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                        <th style={th}>Time</th>
+                        <th style={th}>Action</th>
+                        <th style={th}>Name</th>
+                        <th style={th}>Entry ID</th>
+                        <th style={th}>Device</th>
+                        <th style={th}>Controls</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {suspiciousEvents.map((log: ActivityLog) => (
+                        <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                          <td style={td}>{formatLogTime(log)}</td>
+                          <td style={td}>{log.type ?? "-"}</td>
+                          <td style={td}>{log.name ?? "-"}</td>
+                          <td style={td}>{log.entryId ?? "-"}</td>
+                          <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
+                          <td style={td}>
+                            {log.entryId ? renderGuestModerationControls(log.entryId, log.name) : "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
+        );
+      case "rsvps":
+        return (
+          <>
+            <div style={searchWrap}>
+              <input
+                placeholder="Search guest by name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={searchInputStyle}
+              />
+            </div>
+            <RSVPTable guests={filteredGuests} />
+          </>
+        );
+      case "songs":
+        return <SongsTable songs={songs} onDelete={handleDeleteSong} />;
+      case "suggestions":
+        return <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} />;
+      case "activity":
+        return (
+          <section style={panelStyle}>
+            <h3 style={panelTitle}>Recent Activity Logs</h3>
+
+            <div style={activityTableWrap}>
+              <table style={activityTableStyle}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                    <th style={th}>Time</th>
+                    <th style={th}>Action</th>
+                    <th style={th}>Name</th>
+                    <th style={th}>Entry ID</th>
+                    <th style={th}>Device</th>
+                    <th style={th}>Details</th>
+                    <th style={th}>Controls</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityLogs.length === 0 && (
+                    <tr>
+                      <td style={emptyTd} colSpan={7}>No activity logs yet.</td>
+                    </tr>
+                  )}
+
+                  {activityLogs.slice(0, activityVisibleCount).map((log: ActivityLog) => (
+                    <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                      <td style={td}>{formatLogTime(log)}</td>
+                      <td style={td}>{log.type ?? "-"}</td>
+                      <td style={td}>{log.name ?? "-"}</td>
+                      <td style={td}>{log.entryId ?? "-"}</td>
+                      <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
+                      <td style={td}>{log.details || "-"}</td>
+                      <td style={td}>
+                        <div style={controlsStyle}>
+                          {log.entryId && renderGuestModerationControls(log.entryId, log.name)}
+                          {log.deviceId && (
+                            <button
+                              style={blockBtn(blockedDeviceIds.has(log.deviceId))}
+                              onClick={() => handleToggleDeviceBlock(log.deviceId as string)}
+                              disabled={!isAdmin}
+                            >
+                              {blockedDeviceIds.has(log.deviceId) ? "Unblock Device" : "Block Device"}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {activityLogs.length > activityVisibleCount && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  style={toggleViewBtn(false)}
+                  onClick={() => setActivityVisibleCount((count) => count + 120)}
+                >
+                  Load more
+                </button>
+              </div>
+            )}
+          </section>
+        );
+      case "device_watch":
+        return (
+          <section style={panelStyle}>
+            <h3 style={panelTitle}>All Devices (Manual Block Controls)</h3>
+
+            {allDevices.length === 0 ? (
+              <p style={mutedText}>No device logs found yet.</p>
+            ) : (
+              <div style={activityTableWrap}>
+                <table style={activityTableStyle}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                      <th style={th}>Device</th>
+                      <th style={th}>Accounts</th>
+                      <th style={th}>Controls</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allDevices.map((device) => (
+                      <tr key={device.deviceId} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                        <td style={td}>{shortDevice(device.deviceId)}</td>
+                        <td style={td}>
+                          <div style={chipWrapStyle}>
+                            {device.accountPairs.map((item) => (
+                              <div key={item.entryId}>
+                                {renderGuestModerationControls(item.entryId, item.name)}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td style={td}>
+                          <button
+                            style={blockBtn(blockedDeviceIds.has(device.deviceId))}
+                            onClick={() => handleToggleDeviceBlock(device.deviceId)}
+                            disabled={!isAdmin}
+                          >
+                            {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        );
+      case "games":
+        return (
+          <div style={mobileStack}>
+            <section style={panelStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div>
+                  <h3 style={panelTitle}>Games Analytics</h3>
+                  <p style={mutedText}>Visual stats, advanced filters, and drill-down voter details</p>
+                </div>
+                <div style={controlsStyle}>
+                  <button
+                    style={toggleViewBtn(gamesView === "analytics")}
+                    onClick={() => setGamesView("analytics")}
+                  >
+                    Analytics
+                  </button>
+                  <button
+                    style={toggleViewBtn(gamesView === "tables")}
+                    onClick={() => setGamesView("tables")}
+                  >
+                    Tables
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={filterGridStyle}>
+                <div style={filterCell}>
+                  <label style={filterLabel}>Category</label>
+                  <Select value={gamesCategoryFilter} onValueChange={(v) => setGamesCategoryFilter(v as GameCategory)}>
+                    <SelectTrigger className="bg-black/40 border-gold/30 text-champagne">
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="self">Self Nomination</SelectItem>
+                      <SelectItem value="cys">A Couple You Ship</SelectItem>
+                      <SelectItem value="mpm">Most Popular Male</SelectItem>
+                      <SelectItem value="mpf">Most Popular Female</SelectItem>
+                      <SelectItem value="bmd">Best Male Duo</SelectItem>
+                      <SelectItem value="bfd">Best Female Duo</SelectItem>
+                      <SelectItem value="swdbitp">Someone Who Doesn't Belong</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div style={filterCell}>
+                  <label style={filterLabel}>Search</label>
+                  <input
+                    value={gamesSearch}
+                    onChange={(e) => setGamesSearch(e.target.value)}
+                    placeholder="Search voter/nominee"
+                    style={filterInput}
+                  />
+                </div>
+
+                <div style={filterCell}>
+                  <label style={filterLabel}>From</label>
+                  <input
+                    type="date"
+                    value={gamesStartDate}
+                    onChange={(e) => setGamesStartDate(e.target.value)}
+                    style={filterInput}
+                  />
+                </div>
+
+                <div style={filterCell}>
+                  <label style={filterLabel}>To</label>
+                  <input
+                    type="date"
+                    value={gamesEndDate}
+                    onChange={(e) => setGamesEndDate(e.target.value)}
+                    style={filterInput}
+                  />
+                </div>
+
+                <div style={{ ...filterCell, justifyContent: "flex-end" }}>
+                  <div style={controlsStyle}>
+                    <button style={smallBtn} onClick={() => applyDatePreset("today")}>Today</button>
+                    <button style={smallBtn} onClick={() => applyDatePreset("last7")}>Last 7 Days</button>
+                    <button style={smallBtn} onClick={() => applyDatePreset("all")}>Clear Dates</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {gamesView === "analytics" && (
+              <>
+                <section style={overviewGridStyle}>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>Participation</h3>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <div style={statRow}>
+                        <span style={mutedText}>Unique voters</span>
+                        <strong>{gamesStats.uniqueVoterCount}</strong>
+                      </div>
+                      <div style={statRow}>
+                        <span style={mutedText}>Invitees</span>
+                        <strong>{gamesStats.inviteeCount}</strong>
+                      </div>
+                      <div style={statRow}>
+                        <span style={mutedText}>Participation Rate</span>
+                        <strong>{gamesStats.participationRate}%</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>Self Nomination Mix</h3>
+                    <ChartDonut
+                      data={gamesStats.selfNominationCounts}
+                      onSliceClick={() => null}
+                      emptyLabel="No self nominations yet."
+                      compact
+                    />
+                  </div>
+                </section>
+
+                <section style={overviewGridStyle}>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>Most Popular Male</h3>
+                    <ChartBars
+                      data={gamesStats.categories.mpm.ranking.slice(0, 8)}
+                      emptyLabel="No MPM votes yet."
+                      onBarClick={(name) => {
+                        const rows = gamesStats.categories.mpm.votersBySelection.get(name) ?? [];
+                        setDrilldown({ title: `MPM - ${name}`, rows });
+                      }}
+                      compact
+                    />
+                  </div>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>Most Popular Female</h3>
+                    <ChartBars
+                      data={gamesStats.categories.mpf.ranking.slice(0, 8)}
+                      emptyLabel="No MPF votes yet."
+                      onBarClick={(name) => {
+                        const rows = gamesStats.categories.mpf.votersBySelection.get(name) ?? [];
+                        setDrilldown({ title: `MPF - ${name}`, rows });
+                      }}
+                      compact
+                    />
+                  </div>
+                </section>
+
+                <section style={overviewGridStyle}>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>A Couple You Ship</h3>
+                    <ChartDonut
+                      data={gamesStats.categories.cys.ranking.slice(0, 8)}
+                      emptyLabel="No CYS votes yet."
+                      onSliceClick={(name) => {
+                        const rows = gamesStats.categories.cys.votersBySelection.get(name) ?? [];
+                        setDrilldown({ title: `CYS - ${name}`, rows });
+                      }}
+                      compact
+                    />
+                  </div>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>Someone Who Doesn't Belong</h3>
+                    <ChartDonut
+                      data={gamesStats.categories.swdbitp.ranking.slice(0, 8)}
+                      emptyLabel="No SWDBITP votes yet."
+                      onSliceClick={(name) => {
+                        const rows = gamesStats.categories.swdbitp.votersBySelection.get(name) ?? [];
+                        setDrilldown({ title: `SWDBITP - ${name}`, rows });
+                      }}
+                      compact
+                    />
+                  </div>
+                </section>
+
+                <section style={overviewGridStyle}>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>Best Male Duo</h3>
+                    <ChartBars
+                      data={gamesStats.categories.bmd.ranking.slice(0, 8)}
+                      emptyLabel="No BMD votes yet."
+                      onBarClick={(name) => {
+                        const rows = gamesStats.categories.bmd.votersBySelection.get(name) ?? [];
+                        setDrilldown({ title: `BMD - ${name}`, rows });
+                      }}
+                      compact
+                    />
+                  </div>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>Best Female Duo</h3>
+                    <ChartBars
+                      data={gamesStats.categories.bfd.ranking.slice(0, 8)}
+                      emptyLabel="No BFD votes yet."
+                      onBarClick={(name) => {
+                        const rows = gamesStats.categories.bfd.votersBySelection.get(name) ?? [];
+                        setDrilldown({ title: `BFD - ${name}`, rows });
+                      }}
+                      compact
+                    />
+                  </div>
+                </section>
+              </>
+            )}
+
+            {gamesView === "tables" && (
+              <>
+                <section style={panelStyle}>
+                  <h3 style={panelTitle}>Self Nominations</h3>
+                  <p style={mutedText}>Grouped by category</p>
+
+                  <div style={overviewGridStyle}>
+                    {Object.entries(nominationCategoryLabels).map(([key, label]) => {
+                      const names = nominationGroups[key] ?? [];
+                      return (
+                        <div key={key} style={miniPanel}>
+                          <h4 style={miniPanelTitle}>{label}</h4>
+                          {names.length === 0 ? (
+                            <p style={mutedTextSmall}>No nominations.</p>
+                          ) : (
+                            <div style={{ display: "grid", gap: 4 }}>
+                              {names.map((name, index) => (
+                                <span key={`${name}-${index}`} style={mutedTextSmall}>{name}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section style={panelStyle}>
+                  <h3 style={panelTitle}>CYS Votes</h3>
+                  <div style={activityTableWrap}>
+                    <table style={activityTableStyle}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                          <th style={th}>Time</th>
+                          <th style={th}>Voter</th>
+                          <th style={th}>Entry ID</th>
+                          <th style={th}>Couple</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rowsByCategory.cys.length === 0 && (
+                          <tr>
+                            <td style={emptyTd} colSpan={4}>No CYS votes yet.</td>
+                          </tr>
+                        )}
+                        {rowsByCategory.cys.slice(0, 150).map((row) => (
+                          <tr key={row.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                            <td style={td}>{row.submittedAtText ?? "-"}</td>
+                            <td style={td}>{row.voterName ?? "-"}</td>
+                            <td style={td}>{row.voterEntryId ?? "-"}</td>
+                            <td style={td}>{row.selection ?? "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section style={overviewGridStyle}>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>MPM Votes</h3>
+                    <VoteTable rows={rowsByCategory.mpm} emptyLabel="No MPM votes yet." tableStyle={activityTableStyle} />
+                  </div>
+
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>MPF Votes</h3>
+                    <VoteTable rows={rowsByCategory.mpf} emptyLabel="No MPF votes yet." tableStyle={activityTableStyle} />
+                  </div>
+                </section>
+
+                <section style={overviewGridStyle}>
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>BMD Votes</h3>
+                    <DuoVoteTable rows={rowsByCategory.bmd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BMD votes yet." tableStyle={activityTableStyle} />
+                  </div>
+
+                  <div style={panelStyle}>
+                    <h3 style={panelTitle}>BFD Votes</h3>
+                    <DuoVoteTable rows={rowsByCategory.bfd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BFD votes yet." tableStyle={activityTableStyle} />
+                  </div>
+                </section>
+
+                <section style={panelStyle}>
+                  <h3 style={panelTitle}>SWDBITP Votes</h3>
+                  <VoteTable rows={rowsByCategory.swdbitp} emptyLabel="No SWDBITP votes yet." tableStyle={activityTableStyle} />
+                </section>
+              </>
+            )}
+
+            {drilldown && (
+              <div style={modalOverlay} onClick={() => setDrilldown(null)}>
+                <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <h3 style={{ ...panelTitle, marginBottom: 0 }}>{drilldown.title}</h3>
+                    <div style={controlsStyle}>
+                      <Select value={drillDownloadFormat} onValueChange={(v) => setDrillDownloadFormat(v as "excel" | "pdf")}>
+                        <SelectTrigger className="w-[110px] h-9 bg-black/40 border-gold/30 text-champagne">
+                          <SelectValue placeholder="Format" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="excel">Excel</SelectItem>
+                          <SelectItem value="pdf">PDF</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <button style={csvBtn} onClick={() => handleDrilldownDownload()}>
+                        Download
+                      </button>
+                      <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 12 }}>
+                    <input
+                      value={drillSearch}
+                      onChange={(e) => setDrillSearch(e.target.value)}
+                      placeholder="Search voter"
+                      style={{ ...filterInput, maxWidth: 220 }}
+                    />
+                    <button style={smallBtn} onClick={() => setDrillSearch("")}>Clear</button>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                    {drilldownFilteredRows.map((row, index) => (
+                      <div key={`${row.voterEntryId}-${index}`} style={rowCompact}>
+                        <div>{row.voterName} ({row.voterEntryId})</div>
+                        <div>{row.selection}</div>
+                        <div style={mutedTextSmall}>{row.submittedAt}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      case "games_monitor":
+        return (
+          <div style={mobileStack}>
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Download Center</h3>
+              <p style={mutedText}>Export report files without CSV clutter</p>
+              <div style={controlsStyle}>
+                <Select value={downloadFormat} onValueChange={(v) => setDownloadFormat(v as "excel" | "pdf")}>
+                  <SelectTrigger className="w-[120px] h-9 bg-black/40 border-gold/30 text-champagne">
+                    <SelectValue placeholder="Format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="excel">Excel</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                  </SelectContent>
+                </Select>
+                <button style={csvBtn} onClick={handleDownloadReport}>Download</button>
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Governance</h3>
+              <p style={mutedTextSmall}>Control result finalization and archive mode.</p>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={rowCompact}>
+                  <span>Finalized:</span>
+                  <strong>{governanceState.finalized ? "Yes" : "No"}</strong>
+                </div>
+                {governanceState.finalizedAt && (
+                  <div style={rowCompact}>
+                    <span>Finalized At:</span>
+                    <strong>{governanceState.finalizedAt}</strong>
+                  </div>
+                )}
+                {governanceState.finalizedBy && (
+                  <div style={rowCompact}>
+                    <span>Finalized By:</span>
+                    <strong>{governanceState.finalizedBy}</strong>
+                  </div>
+                )}
+              </div>
+              <input
+                value={governanceSignature}
+                onChange={(e) => setGovernanceSignature(e.target.value)}
+                placeholder="Signature to finalize"
+                style={filterInput}
+              />
+              <div style={controlsStyle}>
+                <button style={csvBtn} onClick={handleFinalizeResults}>Finalize Results</button>
+                <button style={smallBtn} onClick={handleUnfinalizeResults}>Unfinalize</button>
+                <button style={smallBtn} onClick={handleToggleArchiveMode}>
+                  {governanceState.archiveMode ? "Disable Archive" : "Enable Archive"}
+                </button>
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Admin Access</h3>
+              <p style={mutedTextSmall}>
+                Add admin Entry IDs. Super admin is fixed to {SUPER_ADMIN_ENTRY_ID}.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  value={newAdminEntryId}
+                  onChange={(e) => setNewAdminEntryId(e.target.value)}
+                  placeholder="Entry ID"
+                  style={{ ...filterInput, maxWidth: 220 }}
+                />
+                <button style={csvBtn} onClick={handleAddAdmin}>Add Admin</button>
+              </div>
+
+              <div style={adminAccessList}>
+                <div style={adminAccessRow}>
+                  <div style={{ display: "grid", gap: 2 }}>
+                    <span style={adminNameText}>
+                      {entryNameMap[SUPER_ADMIN_ENTRY_ID] ?? "Super Admin"} ({SUPER_ADMIN_ENTRY_ID})
+                    </span>
+                  </div>
+                  <span style={rolePillSuper}>Super Admin</span>
+                </div>
+                {adminRoles
+                  .filter((r) => (r.entryId ?? r.id ?? "") !== SUPER_ADMIN_ENTRY_ID)
+                  .map((admin) => {
+                    const adminEntryId = admin.entryId ?? admin.id ?? "";
+                    const displayEntryId = adminEntryId || "-";
+                    const displayName = entryNameMap[adminEntryId] ?? displayEntryId;
+                    return (
+                      <div key={admin.id} style={adminAccessRow}>
+                        <span style={adminNameText}>
+                          {displayName} ({displayEntryId})
+                        </span>
+                        <div style={controlsStyle}>
+                          <span style={rolePillAdmin}>Admin</span>
+                          {isSuperAdmin && (
+                            <button style={smallBtn} onClick={() => handleRemoveAdmin(adminEntryId)}>
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                {adminRoles.filter((r) => (r.entryId ?? r.id ?? "") !== SUPER_ADMIN_ENTRY_ID).length === 0 && (
+                  <p style={{ ...mutedText, marginTop: 4 }}>No additional admins added yet.</p>
+                )}
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Suspicious Pattern Insights</h3>
+              {suspiciousVoteInsights.length === 0 ? (
+                <p style={mutedText}>No suspicious patterns detected for current filters.</p>
+              ) : (
+                <div style={overviewGridStyle}>
+                  {suspiciousVoteInsights.map((item) => (
+                    <div key={item.id} style={miniPanel}>
+                      <h4 style={miniPanelTitle}>{item.title}</h4>
+                      <p style={mutedText}>{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section style={panelStyle}>
+              <h3 style={panelTitle}>Admin Action Log</h3>
+              {auditLogs.length === 0 ? (
+                <p style={mutedText}>No admin actions logged yet.</p>
+              ) : (
+                <div style={activityTableWrap}>
+                  <table style={activityTableStyle}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                        <th style={th}>Time</th>
+                        <th style={th}>Actor</th>
+                        <th style={th}>Action</th>
+                        <th style={th}>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLogs.slice(0, auditVisibleCount).map((log) => (
+                        <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                          <td style={td}>{formatGameTime(log)}</td>
+                          <td style={td}>{log.actor ?? "-"}</td>
+                          <td style={td}>{log.action ?? "-"}</td>
+                          <td style={td}>{log.details ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {auditLogs.length > auditVisibleCount && (
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    style={smallBtn}
+                    onClick={() => setAuditVisibleCount((count) => count + 60)}
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
+            </section>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <AdminLayout
       navItems={[
@@ -1314,6 +2046,8 @@ export default function AdminDashboard(): JSX.Element {
       subtitle={`Live data updates from Firestore • ${authBadge}`}
       onLogout={handleLogout}
     >
+      {!isMobile && (
+        <>
       {activeSection === "overview" && (
         <>
           <AdminStats stats={stats} />
@@ -1585,7 +2319,7 @@ export default function AdminDashboard(): JSX.Element {
           </section>
 
           <section style={panelStyle}>
-            <div style={gamesFilterGrid}>
+            <div style={filterGridStyle}>
               <div style={filterCell}>
                 <label style={filterLabel}>Category</label>
                 <Select
@@ -2133,6 +2867,9 @@ export default function AdminDashboard(): JSX.Element {
           </section>
         </div>
       )}
+        </>
+      )}
+      {isMobile && renderMobileContent()}
     </AdminLayout>
   );
 }
