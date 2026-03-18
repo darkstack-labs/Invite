@@ -1277,10 +1277,37 @@ export default function AdminDashboard(): JSX.Element {
     switch (activeSection) {
       case "overview":
         return (
-          <div style={mobileStack}>
-            <AdminStats stats={stats} />
-            <section style={panelStyle}>
-              <h3 style={panelTitle}>Latest RSVP</h3>
+          <div style={mobilePage}>
+            <section style={mobileHero}>
+              <p style={mobileHeroEyebrow}>Admin Dashboard</p>
+              <h2 style={mobileHeroTitle}>Live Event Control</h2>
+              <p style={mobileHeroCopy}>Mobile-first monitoring for RSVPs, activity, devices, and voting health.</p>
+              <div style={mobileKpiGrid}>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>RSVP Total</span>
+                  <span style={mobileKpiValue}>{stats.total}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Attending</span>
+                  <span style={mobileKpiValue}>{stats.attending}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Suspicious Devices</span>
+                  <span style={mobileKpiValue}>{suspiciousDevices.length}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Current Role</span>
+                  <span style={mobileKpiValue}>{authBadge}</span>
+                </div>
+              </div>
+            </section>
+
+            <div style={mobileCardGrid}>
+              <section style={mobileMiniCard}>
+                <div style={mobileSectionHeader}>
+                  <p style={mobileSectionEyebrow}>Guests</p>
+                  <h3 style={mobileSectionTitle}>Latest RSVP</h3>
+                </div>
               {recentRSVPs.length === 0 ? (
                 <p style={mutedText}>No RSVP yet.</p>
               ) : (
@@ -1293,10 +1320,13 @@ export default function AdminDashboard(): JSX.Element {
                   </div>
                 ))
               )}
-            </section>
+              </section>
 
-            <section style={panelStyle}>
-              <h3 style={panelTitle}>Recent Songs</h3>
+              <section style={mobileMiniCard}>
+                <div style={mobileSectionHeader}>
+                  <p style={mobileSectionEyebrow}>Music</p>
+                  <h3 style={mobileSectionTitle}>Recent Songs</h3>
+                </div>
               {recentSongs.length === 0 ? (
                 <p style={mutedText}>No song requests yet.</p>
               ) : (
@@ -1307,10 +1337,13 @@ export default function AdminDashboard(): JSX.Element {
                   </div>
                 ))
               )}
-            </section>
+              </section>
 
-            <section style={panelStyle}>
-              <h3 style={panelTitle}>Recent Suggestions</h3>
+              <section style={mobileMiniCard}>
+                <div style={mobileSectionHeader}>
+                  <p style={mobileSectionEyebrow}>Feedback</p>
+                  <h3 style={mobileSectionTitle}>Recent Suggestions</h3>
+                </div>
               {recentSuggestions.length === 0 ? (
                 <p style={mutedText}>No suggestions yet.</p>
               ) : (
@@ -1321,10 +1354,13 @@ export default function AdminDashboard(): JSX.Element {
                   </div>
                 ))
               )}
-            </section>
+              </section>
 
-            <section style={panelStyle}>
-              <h3 style={panelTitle}>Suspicious Devices</h3>
+              <section style={mobileMiniCard}>
+                <div style={mobileSectionHeader}>
+                  <p style={mobileSectionEyebrow}>Risk</p>
+                  <h3 style={mobileSectionTitle}>Suspicious Devices</h3>
+                </div>
               {suspiciousDevices.length === 0 ? (
                 <p style={mutedText}>No device has logged multiple accounts yet.</p>
               ) : (
@@ -1337,10 +1373,15 @@ export default function AdminDashboard(): JSX.Element {
                   </div>
                 ))
               )}
-            </section>
+              </section>
+            </div>
 
             <section style={panelStyle}>
-              <h3 style={panelTitle}>Recent Suspicious Activity</h3>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Monitor</p>
+                <h3 style={mobileSectionTitle}>Recent Suspicious Activity</h3>
+                <p style={mobileSectionCopy}>Swipe horizontally if the controls table extends beyond the viewport.</p>
+              </div>
               {suspiciousEvents.length === 0 ? (
                 <p style={mutedText}>No suspicious recent events.</p>
               ) : (
@@ -1397,55 +1438,66 @@ export default function AdminDashboard(): JSX.Element {
       case "activity":
         return (
           <section style={panelStyle}>
-            <h3 style={panelTitle}>Recent Activity Logs</h3>
-
-            <div style={activityTableWrap}>
-              <table style={activityTableStyle}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-                    <th style={th}>Time</th>
-                    <th style={th}>Action</th>
-                    <th style={th}>Name</th>
-                    <th style={th}>Entry ID</th>
-                    <th style={th}>Device</th>
-                    <th style={th}>Details</th>
-                    <th style={th}>Controls</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activityLogs.length === 0 && (
-                    <tr>
-                      <td style={emptyTd} colSpan={7}>No activity logs yet.</td>
-                    </tr>
-                  )}
-
-                  {activityLogs.slice(0, activityVisibleCount).map((log: ActivityLog) => (
-                    <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                      <td style={td}>{formatLogTime(log)}</td>
-                      <td style={td}>{log.type ?? "-"}</td>
-                      <td style={td}>{log.name ?? "-"}</td>
-                      <td style={td}>{log.entryId ?? "-"}</td>
-                      <td style={td}>{shortDevice(log.deviceId ?? "unknown-device")}</td>
-                      <td style={td}>{log.details || "-"}</td>
-                      <td style={td}>
-                        <div style={controlsStyle}>
-                          {log.entryId && renderGuestModerationControls(log.entryId, log.name)}
-                          {log.deviceId && (
-                            <button
-                              style={blockBtn(blockedDeviceIds.has(log.deviceId))}
-                              onClick={() => handleToggleDeviceBlock(log.deviceId as string)}
-                              disabled={!isAdmin}
-                            >
-                              {blockedDeviceIds.has(log.deviceId) ? "Unblock Device" : "Block Device"}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={mobileSectionHeader}>
+              <p style={mobileSectionEyebrow}>Activity</p>
+              <h3 style={mobileSectionTitle}>Recent Activity Logs</h3>
+              <p style={mobileSectionCopy}>Operational log with moderation actions and device controls.</p>
             </div>
+            {activityLogs.length === 0 ? (
+              <p style={mutedText}>No activity logs yet.</p>
+            ) : (
+              <div style={mobileFeed}>
+                {activityLogs.slice(0, activityVisibleCount).map((log: ActivityLog) => (
+                  <article key={log.id} style={mobileLogCard}>
+                    <div style={mobileLogHeader}>
+                      <div>
+                        <p style={mobileLogTitle}>{log.type ?? "Unknown action"}</p>
+                        <p style={mutedTextSmall}>{formatLogTime(log)}</p>
+                      </div>
+                      {log.deviceId ? (
+                        <span style={badge(blockedDeviceIds.has(log.deviceId) ? "#ff4d4f" : "#7cc4ff")}>
+                          {blockedDeviceIds.has(log.deviceId) ? "Blocked Device" : "Device Active"}
+                        </span>
+                      ) : (
+                        <span style={badge("#7f8a96")}>No Device</span>
+                      )}
+                    </div>
+
+                    <div style={mobileMetaGrid}>
+                      <div style={mobileMetaItem}>
+                        <span style={mobileMetaLabel}>Guest</span>
+                        <span style={mobileMetaValue}>{log.name ?? "-"}</span>
+                      </div>
+                      <div style={mobileMetaItem}>
+                        <span style={mobileMetaLabel}>Entry ID</span>
+                        <span style={mobileMetaValue}>{log.entryId ?? "-"}</span>
+                      </div>
+                      <div style={mobileMetaItem}>
+                        <span style={mobileMetaLabel}>Device</span>
+                        <span style={mobileMetaValue}>{shortDevice(log.deviceId ?? "unknown-device")}</span>
+                      </div>
+                      <div style={mobileMetaItem}>
+                        <span style={mobileMetaLabel}>Details</span>
+                        <span style={mobileMetaValue}>{log.details || "-"}</span>
+                      </div>
+                    </div>
+
+                    <div style={controlsStyle}>
+                      {log.entryId && renderGuestModerationControls(log.entryId, log.name)}
+                      {log.deviceId && (
+                        <button
+                          style={blockBtn(blockedDeviceIds.has(log.deviceId))}
+                          onClick={() => handleToggleDeviceBlock(log.deviceId as string)}
+                          disabled={!isAdmin}
+                        >
+                          {blockedDeviceIds.has(log.deviceId) ? "Unblock Device" : "Block Device"}
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
             {activityLogs.length > activityVisibleCount && (
               <div style={{ marginTop: 12 }}>
                 <button
@@ -1461,58 +1513,94 @@ export default function AdminDashboard(): JSX.Element {
       case "device_watch":
         return (
           <section style={panelStyle}>
-            <h3 style={panelTitle}>All Devices (Manual Block Controls)</h3>
+            <div style={mobileSectionHeader}>
+              <p style={mobileSectionEyebrow}>Devices</p>
+              <h3 style={mobileSectionTitle}>All Devices</h3>
+              <p style={mobileSectionCopy}>Device-level review for multi-account behavior and manual blocking.</p>
+            </div>
 
             {allDevices.length === 0 ? (
               <p style={mutedText}>No device logs found yet.</p>
             ) : (
-              <div style={activityTableWrap}>
-                <table style={activityTableStyle}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-                      <th style={th}>Device</th>
-                      <th style={th}>Accounts</th>
-                      <th style={th}>Controls</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allDevices.map((device) => (
-                      <tr key={device.deviceId} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                        <td style={td}>{shortDevice(device.deviceId)}</td>
-                        <td style={td}>
-                          <div style={chipWrapStyle}>
-                            {device.accountPairs.map((item) => (
-                              <div key={item.entryId}>
-                                {renderGuestModerationControls(item.entryId, item.name)}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                        <td style={td}>
-                          <button
-                            style={blockBtn(blockedDeviceIds.has(device.deviceId))}
-                            onClick={() => handleToggleDeviceBlock(device.deviceId)}
-                            disabled={!isAdmin}
-                          >
-                            {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={mobileFeed}>
+                {allDevices.map((device) => (
+                  <article key={device.deviceId} style={mobileLogCard}>
+                    <div style={mobileLogHeader}>
+                      <div>
+                        <p style={mobileLogTitle}>{shortDevice(device.deviceId)}</p>
+                        <p style={mutedTextSmall}>{device.events} logged events</p>
+                      </div>
+                      <span style={badge(blockedDeviceIds.has(device.deviceId) ? "#ff4d4f" : "#ff8c42")}>
+                        {blockedDeviceIds.has(device.deviceId) ? "Blocked" : `${device.accounts.length} accounts`}
+                      </span>
+                    </div>
+
+                    <div style={mobileMetaGrid}>
+                      <div style={mobileMetaItem}>
+                        <span style={mobileMetaLabel}>Accounts</span>
+                        <span style={mobileMetaValue}>{device.accounts.join(", ") || "-"}</span>
+                      </div>
+                      <div style={mobileMetaItem}>
+                        <span style={mobileMetaLabel}>Guests</span>
+                        <span style={mobileMetaValue}>{device.names.join(", ") || "-"}</span>
+                      </div>
+                    </div>
+
+                    <div style={chipWrapStyle}>
+                      {device.accountPairs.map((item) => (
+                        <div key={item.entryId}>
+                          {renderGuestModerationControls(item.entryId, item.name)}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={controlsStyle}>
+                      <button
+                        style={blockBtn(blockedDeviceIds.has(device.deviceId))}
+                        onClick={() => handleToggleDeviceBlock(device.deviceId)}
+                        disabled={!isAdmin}
+                      >
+                        {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
             )}
           </section>
         );
       case "games":
         return (
-          <div style={mobileStack}>
+          <div style={mobilePage}>
+            <section style={mobileHero}>
+              <p style={mobileHeroEyebrow}>Games Votes</p>
+              <h2 style={mobileHeroTitle}>Voting Intelligence</h2>
+              <p style={mobileHeroCopy}>Fast mobile access to participation, rankings, drilldown voters, and suspicious patterns.</p>
+              <div style={mobileKpiGrid}>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Unique Voters</span>
+                  <span style={mobileKpiValue}>{gamesStats.uniqueVoterCount}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Participation</span>
+                  <span style={mobileKpiValue}>{gamesStats.participationRate}%</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Rows in View</span>
+                  <span style={mobileKpiValue}>{filteredGameRows.length}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Mode</span>
+                  <span style={mobileKpiValue}>{gamesView === "analytics" ? "Charts" : "Tables"}</span>
+                </div>
+              </div>
+            </section>
+
             <section style={panelStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                 <div>
-                  <h3 style={panelTitle}>Games Analytics</h3>
-                  <p style={mutedText}>Visual stats, advanced filters, and drill-down voter details</p>
+                  <p style={mobileSectionEyebrow}>View</p>
+                  <h3 style={mobileSectionTitle}>Games Analytics</h3>
                 </div>
                 <div style={controlsStyle}>
                   <button
@@ -1532,6 +1620,10 @@ export default function AdminDashboard(): JSX.Element {
             </section>
 
             <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Filters</p>
+                <h3 style={mobileSectionTitle}>Query Votes</h3>
+              </div>
               <div style={filterGridStyle}>
                 <div style={filterCell}>
                   <label style={filterLabel}>Category</label>
@@ -1844,10 +1936,37 @@ export default function AdminDashboard(): JSX.Element {
         );
       case "games_monitor":
         return (
-          <div style={mobileStack}>
+          <div style={mobilePage}>
+            <section style={mobileHero}>
+              <p style={mobileHeroEyebrow}>Admin Monitor</p>
+              <h2 style={mobileHeroTitle}>Governance and Audit</h2>
+              <p style={mobileHeroCopy}>Mobile controls for exports, result governance, admin access, and audit visibility.</p>
+              <div style={mobileKpiGrid}>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Audit Entries</span>
+                  <span style={mobileKpiValue}>{auditLogs.length}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Admins</span>
+                  <span style={mobileKpiValue}>{adminRoles.length + 1}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Finalized</span>
+                  <span style={mobileKpiValue}>{governanceState.finalized ? "Yes" : "No"}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Archive</span>
+                  <span style={mobileKpiValue}>{governanceState.archiveMode ? "On" : "Off"}</span>
+                </div>
+              </div>
+            </section>
+
             <section style={panelStyle}>
-              <h3 style={panelTitle}>Download Center</h3>
-              <p style={mutedText}>Export report files without CSV clutter</p>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Exports</p>
+                <h3 style={mobileSectionTitle}>Download Center</h3>
+                <p style={mobileSectionCopy}>Export filtered reporting data without leaving the dashboard.</p>
+              </div>
               <div style={controlsStyle}>
                 <Select value={downloadFormat} onValueChange={(v) => setDownloadFormat(v as "excel" | "pdf")}>
                   <SelectTrigger className="w-[120px] h-9 bg-black/40 border-gold/30 text-champagne">
@@ -1863,8 +1982,11 @@ export default function AdminDashboard(): JSX.Element {
             </section>
 
             <section style={panelStyle}>
-              <h3 style={panelTitle}>Governance</h3>
-              <p style={mutedTextSmall}>Control result finalization and archive mode.</p>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Governance</p>
+                <h3 style={mobileSectionTitle}>Results Control</h3>
+                <p style={mobileSectionCopy}>Finalize, unfinalize, or archive results with an explicit signature.</p>
+              </div>
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={rowCompact}>
                   <span>Finalized:</span>
@@ -1899,10 +2021,11 @@ export default function AdminDashboard(): JSX.Element {
             </section>
 
             <section style={panelStyle}>
-              <h3 style={panelTitle}>Admin Access</h3>
-              <p style={mutedTextSmall}>
-                Add admin Entry IDs. Super admin is fixed to {SUPER_ADMIN_ENTRY_ID}.
-              </p>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Access</p>
+                <h3 style={mobileSectionTitle}>Admin Access</h3>
+                <p style={mobileSectionCopy}>Manage additional admin entry IDs. Super admin remains fixed.</p>
+              </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <input
                   value={newAdminEntryId}
@@ -1951,7 +2074,10 @@ export default function AdminDashboard(): JSX.Element {
             </section>
 
             <section style={panelStyle}>
-              <h3 style={panelTitle}>Suspicious Pattern Insights</h3>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Risk</p>
+                <h3 style={mobileSectionTitle}>Suspicious Pattern Insights</h3>
+              </div>
               {suspiciousVoteInsights.length === 0 ? (
                 <p style={mutedText}>No suspicious patterns detected for current filters.</p>
               ) : (
@@ -1967,31 +2093,30 @@ export default function AdminDashboard(): JSX.Element {
             </section>
 
             <section style={panelStyle}>
-              <h3 style={panelTitle}>Admin Action Log</h3>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Audit</p>
+                <h3 style={mobileSectionTitle}>Admin Action Log</h3>
+                <p style={mobileSectionCopy}>Review the latest privileged actions and governance changes.</p>
+              </div>
               {auditLogs.length === 0 ? (
                 <p style={mutedText}>No admin actions logged yet.</p>
               ) : (
-                <div style={activityTableWrap}>
-                  <table style={activityTableStyle}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
-                        <th style={th}>Time</th>
-                        <th style={th}>Actor</th>
-                        <th style={th}>Action</th>
-                        <th style={th}>Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {auditLogs.slice(0, auditVisibleCount).map((log) => (
-                        <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                          <td style={td}>{formatGameTime(log)}</td>
-                          <td style={td}>{log.actor ?? "-"}</td>
-                          <td style={td}>{log.action ?? "-"}</td>
-                          <td style={td}>{log.details ?? "-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div style={mobileFeed}>
+                  {auditLogs.slice(0, auditVisibleCount).map((log) => (
+                    <article key={log.id} style={mobileLogCard}>
+                      <div style={mobileLogHeader}>
+                        <div>
+                          <p style={mobileLogTitle}>{log.action ?? "Unknown action"}</p>
+                          <p style={mutedTextSmall}>{formatGameTime(log)}</p>
+                        </div>
+                        <span style={badge("#7cc4ff")}>{log.actor ?? "-"}</span>
+                      </div>
+                      <div style={mobileMetaItem}>
+                        <span style={mobileMetaLabel}>Details</span>
+                        <span style={mobileMetaValue}>{log.details ?? "-"}</span>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               )}
               {auditLogs.length > auditVisibleCount && (
@@ -3354,6 +3479,172 @@ const modalCard: CSSProperties = {
   borderRadius: 14,
   background: "#111418",
   padding: 14
+};
+
+const mobilePage: CSSProperties = {
+  display: "grid",
+  gap: 14
+};
+
+const mobileHero: CSSProperties = {
+  border: "1px solid rgba(255,213,122,0.22)",
+  borderRadius: 18,
+  padding: 14,
+  background:
+    "linear-gradient(145deg, rgba(255,213,122,0.16) 0%, rgba(255,140,66,0.08) 35%, rgba(255,255,255,0.03) 100%)",
+  boxShadow: "0 14px 40px rgba(0,0,0,0.22)"
+};
+
+const mobileHeroEyebrow: CSSProperties = {
+  margin: 0,
+  fontSize: 11,
+  letterSpacing: 1.2,
+  textTransform: "uppercase",
+  color: "#f5c768"
+};
+
+const mobileHeroTitle: CSSProperties = {
+  margin: "6px 0 4px",
+  fontSize: 24,
+  lineHeight: 1.1,
+  color: "#fff7df"
+};
+
+const mobileHeroCopy: CSSProperties = {
+  margin: 0,
+  color: "#d4d8de",
+  fontSize: 13,
+  lineHeight: 1.45
+};
+
+const mobileKpiGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 10,
+  marginTop: 14
+};
+
+const mobileKpiCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  padding: "10px 11px",
+  background: "rgba(10,12,16,0.34)"
+};
+
+const mobileKpiLabel: CSSProperties = {
+  display: "block",
+  color: "#aeb5be",
+  fontSize: 11,
+  marginBottom: 6
+};
+
+const mobileKpiValue: CSSProperties = {
+  color: "#fff",
+  fontSize: 18,
+  fontWeight: 800
+};
+
+const mobileSectionHeader: CSSProperties = {
+  display: "grid",
+  gap: 3,
+  marginBottom: 10
+};
+
+const mobileSectionEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#f0be5c",
+  fontSize: 10,
+  letterSpacing: 1,
+  textTransform: "uppercase"
+};
+
+const mobileSectionTitle: CSSProperties = {
+  margin: 0,
+  color: "#fff",
+  fontSize: 17,
+  lineHeight: 1.2
+};
+
+const mobileSectionCopy: CSSProperties = {
+  margin: 0,
+  color: "#aeb5be",
+  fontSize: 12,
+  lineHeight: 1.45
+};
+
+const mobileTableNote: CSSProperties = {
+  margin: "0 0 10px",
+  color: "#97a0aa",
+  fontSize: 11
+};
+
+const mobileCardGrid: CSSProperties = {
+  display: "grid",
+  gap: 10
+};
+
+const mobileMiniCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.025)",
+  padding: 12
+};
+
+const mobileFeed: CSSProperties = {
+  display: "grid",
+  gap: 10
+};
+
+const mobileLogCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.03)",
+  padding: 12,
+  display: "grid",
+  gap: 10
+};
+
+const mobileLogHeader: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 10
+};
+
+const mobileLogTitle: CSSProperties = {
+  margin: 0,
+  color: "#fff2cf",
+  fontSize: 14,
+  fontWeight: 700
+};
+
+const mobileMetaGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 8
+};
+
+const mobileMetaItem: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 12,
+  padding: "8px 9px",
+  background: "rgba(0,0,0,0.18)"
+};
+
+const mobileMetaLabel: CSSProperties = {
+  display: "block",
+  color: "#97a0aa",
+  fontSize: 10,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  marginBottom: 4
+};
+
+const mobileMetaValue: CSSProperties = {
+  color: "#eef2f7",
+  fontSize: 12,
+  lineHeight: 1.35,
+  wordBreak: "break-word"
 };
 
 const closeBtn: CSSProperties = {
