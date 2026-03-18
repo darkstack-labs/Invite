@@ -1811,7 +1811,7 @@ export default function AdminDashboard(): JSX.Element {
                           <SelectItem value="pdf">PDF</SelectItem>
                         </SelectContent>
                       </Select>
-                      <button style={csvBtn} onClick={() => handleDrilldownDownload()}>
+                      <button style={csvBtn} onClick={handleDownloadDrilldown}>
                         Download
                       </button>
                       <button style={closeBtn} onClick={() => setDrilldown(null)}>Close</button>
@@ -1858,7 +1858,7 @@ export default function AdminDashboard(): JSX.Element {
                     <SelectItem value="pdf">PDF</SelectItem>
                   </SelectContent>
                 </Select>
-                <button style={csvBtn} onClick={handleDownloadReport}>Download</button>
+                <button style={csvBtn} onClick={handleDownloadFiltered}>Download</button>
               </div>
             </section>
 
