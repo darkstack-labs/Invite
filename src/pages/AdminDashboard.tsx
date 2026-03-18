@@ -230,17 +230,19 @@ export default function AdminDashboard(): JSX.Element {
   const isAdmin = isSuperAdmin || !!adminRoleMap[currentEntryId];
   const authBadge = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Viewer";
   const overviewGridStyle = isMobile
-    ? { ...overviewGrid, gridTemplateColumns: "1fr" }
+    ? { ...overviewGrid, gridTemplateColumns: "1fr", gap: 10 }
     : overviewGrid;
-  const panelStyle = isMobile ? { ...panel, padding: 12 } : panel;
-  const activityTableStyle = isMobile ? { ...activityTable, minWidth: 0 } : activityTable;
+  const panelStyle = isMobile ? { ...panel, padding: 10 } : panel;
+  const activityTableStyle = isMobile ? { ...activityTable, minWidth: 640 } : activityTable;
   const controlsStyle = isMobile
-    ? { ...controls, flexDirection: "column", alignItems: "stretch" }
+    ? { ...controls, flexWrap: "wrap", width: "100%", gap: 8 }
     : controls;
   const chipWrapStyle = isMobile
-    ? { ...chipWrap, flexDirection: "column", alignItems: "stretch" }
+    ? { ...chipWrap, flexDirection: "column", alignItems: "stretch", gap: 8 }
     : chipWrap;
-  const searchInputStyle = isMobile ? { ...searchInput, maxWidth: "100%" } : searchInput;
+  const searchInputStyle = isMobile
+    ? { ...searchInput, maxWidth: "100%", padding: "9px 10px", fontSize: 13 }
+    : searchInput;
 
   const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === "object" && error !== null) {
@@ -623,14 +625,6 @@ export default function AdminDashboard(): JSX.Element {
   }, [drilldownFilteredRows]);
 
   useEffect(() => {
-    const onResize = () => {
-      setIsMobile(window.innerWidth < 900);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useEffect(() => {
     let unsubEntries = () => {};
     let unsubDevices = () => {};
     let unsubWarnings = () => {};
@@ -741,6 +735,14 @@ export default function AdminDashboard(): JSX.Element {
       setAdminSessionEntryId(storedEntryId);
     }
   }, [authenticated, adminSessionEntryId]);
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsMobile(window.innerWidth < 900);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1673,6 +1675,7 @@ export default function AdminDashboard(): JSX.Element {
                     data={gamesStats.selfNominationCounts}
                     onSliceClick={() => null}
                     emptyLabel="No self nominations yet."
+                    compact={isMobile}
                   />
                 </div>
               </section>
@@ -1687,6 +1690,7 @@ export default function AdminDashboard(): JSX.Element {
                       const rows = gamesStats.categories.mpm.votersBySelection.get(name) ?? [];
                       setDrilldown({ title: `MPM - ${name}`, rows });
                     }}
+                    compact={isMobile}
                   />
                 </div>
                 <div style={panelStyle}>
@@ -1698,6 +1702,7 @@ export default function AdminDashboard(): JSX.Element {
                       const rows = gamesStats.categories.mpf.votersBySelection.get(name) ?? [];
                       setDrilldown({ title: `MPF - ${name}`, rows });
                     }}
+                    compact={isMobile}
                   />
                 </div>
               </section>
@@ -1712,6 +1717,7 @@ export default function AdminDashboard(): JSX.Element {
                       const rows = gamesStats.categories.cys.votersBySelection.get(name) ?? [];
                       setDrilldown({ title: `CYS - ${name}`, rows });
                     }}
+                    compact={isMobile}
                   />
                 </div>
                 <div style={panelStyle}>
@@ -1723,6 +1729,7 @@ export default function AdminDashboard(): JSX.Element {
                       const rows = gamesStats.categories.swdbitp.votersBySelection.get(name) ?? [];
                       setDrilldown({ title: `SWDBITP - ${name}`, rows });
                     }}
+                    compact={isMobile}
                   />
                 </div>
               </section>
@@ -1737,6 +1744,7 @@ export default function AdminDashboard(): JSX.Element {
                       const rows = gamesStats.categories.bmd.votersBySelection.get(name) ?? [];
                       setDrilldown({ title: `BMD - ${name}`, rows });
                     }}
+                    compact={isMobile}
                   />
                 </div>
                 <div style={panelStyle}>
@@ -1748,6 +1756,7 @@ export default function AdminDashboard(): JSX.Element {
                       const rows = gamesStats.categories.bfd.votersBySelection.get(name) ?? [];
                       setDrilldown({ title: `BFD - ${name}`, rows });
                     }}
+                    compact={isMobile}
                   />
                 </div>
               </section>
@@ -1819,30 +1828,54 @@ export default function AdminDashboard(): JSX.Element {
               <section style={overviewGridStyle}>
                 <div style={panelStyle}>
                   <h3 style={panelTitle}>MPM Votes</h3>
-                  <VoteTable rows={rowsByCategory.mpm} emptyLabel="No MPM votes yet." />
+                  <VoteTable
+                    rows={rowsByCategory.mpm}
+                    emptyLabel="No MPM votes yet."
+                    tableStyle={activityTableStyle}
+                  />
                 </div>
 
                 <div style={panelStyle}>
                   <h3 style={panelTitle}>MPF Votes</h3>
-                  <VoteTable rows={rowsByCategory.mpf} emptyLabel="No MPF votes yet." />
+                  <VoteTable
+                    rows={rowsByCategory.mpf}
+                    emptyLabel="No MPF votes yet."
+                    tableStyle={activityTableStyle}
+                  />
                 </div>
               </section>
 
               <section style={overviewGridStyle}>
                 <div style={panelStyle}>
                   <h3 style={panelTitle}>BMD Votes</h3>
-                  <DuoVoteTable rows={rowsByCategory.bmd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BMD votes yet." />
+                  <DuoVoteTable
+                    rows={rowsByCategory.bmd}
+                    leftLabel="Pair"
+                    rightLabel="Votes"
+                    emptyLabel="No BMD votes yet."
+                    tableStyle={activityTableStyle}
+                  />
                 </div>
 
                 <div style={panelStyle}>
                   <h3 style={panelTitle}>BFD Votes</h3>
-                  <DuoVoteTable rows={rowsByCategory.bfd} leftLabel="Pair" rightLabel="Votes" emptyLabel="No BFD votes yet." />
+                  <DuoVoteTable
+                    rows={rowsByCategory.bfd}
+                    leftLabel="Pair"
+                    rightLabel="Votes"
+                    emptyLabel="No BFD votes yet."
+                    tableStyle={activityTableStyle}
+                  />
                 </div>
               </section>
 
               <section style={panelStyle}>
                 <h3 style={panelTitle}>SWDBITP Votes</h3>
-                <VoteTable rows={rowsByCategory.swdbitp} emptyLabel="No SWDBITP votes yet." />
+                <VoteTable
+                  rows={rowsByCategory.swdbitp}
+                  emptyLabel="No SWDBITP votes yet."
+                  tableStyle={activityTableStyle}
+                />
               </section>
             </>
           )}
@@ -2106,17 +2139,19 @@ export default function AdminDashboard(): JSX.Element {
 
 function VoteTable({
   rows,
-  emptyLabel
+  emptyLabel,
+  tableStyle
 }: {
   rows: any[];
   emptyLabel: string;
+  tableStyle: CSSProperties;
 }) {
   const [visibleCount, setVisibleCount] = useState(150);
   const visibleRows = rows.slice(0, visibleCount);
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={activityTableWrap}>
-        <table style={activityTableStyle}>
+        <table style={tableStyle}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
               <th style={th}>Time</th>
@@ -2155,19 +2190,21 @@ function DuoVoteTable({
   rows,
   leftLabel,
   rightLabel,
-  emptyLabel
+  emptyLabel,
+  tableStyle
 }: {
   rows: any[];
   leftLabel: string;
   rightLabel: string;
   emptyLabel: string;
+  tableStyle: CSSProperties;
 }) {
   const [visibleCount, setVisibleCount] = useState(150);
   const visibleRows = rows.slice(0, visibleCount);
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={activityTableWrap}>
-        <table style={activityTableStyle}>
+        <table style={tableStyle}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
               <th style={th}>Time</th>
@@ -2207,19 +2244,21 @@ function DuoVoteTable({
 function ChartDonut({
   data,
   emptyLabel,
-  onSliceClick
+  onSliceClick,
+  compact
 }: {
   data: Array<{ name: string; value: number }>;
   emptyLabel: string;
   onSliceClick: (name: string) => void;
+  compact?: boolean;
 }) {
   if (!data.length) {
     return <p style={mutedText}>{emptyLabel}</p>;
   }
 
   return (
-    <div style={chartWrap}>
-      <ResponsiveContainer width="100%" height={280}>
+    <div style={compact ? { ...chartWrap, minHeight: 220 } : chartWrap}>
+      <ResponsiveContainer width="100%" height={compact ? 220 : 280}>
         <PieChart>
           <Pie
             data={data}
@@ -2259,19 +2298,21 @@ function ChartDonut({
 function ChartBars({
   data,
   emptyLabel,
-  onBarClick
+  onBarClick,
+  compact
 }: {
   data: Array<{ name: string; value: number }>;
   emptyLabel: string;
   onBarClick: (name: string) => void;
+  compact?: boolean;
 }) {
   if (!data.length) {
     return <p style={mutedText}>{emptyLabel}</p>;
   }
 
   return (
-    <div style={chartWrap}>
-      <ResponsiveContainer width="100%" height={280}>
+    <div style={compact ? { ...chartWrap, minHeight: 220 } : chartWrap}>
+      <ResponsiveContainer width="100%" height={compact ? 220 : 280}>
         <BarChart data={data} layout="vertical" margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
           <XAxis type="number" tick={{ fill: "#d2d7df", fontSize: 11 }} />
@@ -2427,7 +2468,8 @@ const searchInput: CSSProperties = {
 };
 
 const activityTableWrap: CSSProperties = {
-  overflowX: "auto"
+  overflowX: "auto",
+  WebkitOverflowScrolling: "touch"
 };
 
 const activityTable: CSSProperties = {

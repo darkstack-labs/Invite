@@ -217,11 +217,12 @@ const content: CSSProperties = {
   width: "100%",
   padding: 20,
   minWidth: 0,
-  overflowX: "hidden"
+  overflowX: "auto",
+  WebkitOverflowScrolling: "touch"
 };
 
 const contentMobile: CSSProperties = {
-  padding: 12,
+  padding: 10,
   maxWidth: "100%"
 };
 
@@ -246,11 +247,12 @@ const topBarMobile: CSSProperties = {
   top: 10,
   zIndex: 20,
   marginBottom: 12,
-  padding: "12px 12px 10px",
+  padding: "10px 12px 9px",
   borderRadius: 12,
   backdropFilter: "blur(8px)",
   alignItems: "flex-start",
-  flexDirection: "column"
+  flexDirection: "column",
+  gap: 6
 };
 
 const topActions: CSSProperties = {
@@ -262,7 +264,8 @@ const topActions: CSSProperties = {
 const topActionsMobile: CSSProperties = {
   width: "100%",
   justifyContent: "space-between",
-  marginTop: 6,
+  marginTop: 4,
+  gap: 8,
   flexWrap: "wrap"
 };
 
@@ -281,8 +284,8 @@ const menuButtonHidden: CSSProperties = {
 };
 
 const menuButtonMobile: CSSProperties = {
-  padding: "8px 11px",
-  fontSize: 12,
+  padding: "8px 10px",
+  fontSize: 11,
   borderColor: "rgba(245,176,0,0.4)",
   color: "#ffd57a"
 };
@@ -298,8 +301,8 @@ const logoutBtn: CSSProperties = {
 };
 
 const logoutBtnMobile: CSSProperties = {
-  padding: "8px 11px",
-  fontSize: 12,
+  padding: "8px 10px",
+  fontSize: 11,
   borderRadius: 9
 };
 
@@ -309,7 +312,7 @@ const pageTitle: CSSProperties = {
 };
 
 const pageTitleMobile: CSSProperties = {
-  fontSize: 17
+  fontSize: 16
 };
 
 const pageSubtitle: CSSProperties = {
@@ -319,15 +322,16 @@ const pageSubtitle: CSSProperties = {
 };
 
 const pageSubtitleMobile: CSSProperties = {
-  fontSize: 11
+  fontSize: 10
 };
 
 const mobileTabs: CSSProperties = {
   display: "flex",
   gap: 8,
   overflowX: "auto",
+  WebkitOverflowScrolling: "touch",
   paddingBottom: 8,
-  marginBottom: 14
+  marginBottom: 12
 };
 
 const mobileTab: CSSProperties = {
@@ -335,7 +339,7 @@ const mobileTab: CSSProperties = {
   background: "rgba(255,255,255,0.03)",
   color: "#d8d8d8",
   borderRadius: 999,
-  padding: "8px 12px",
+  padding: "8px 14px",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 12,
