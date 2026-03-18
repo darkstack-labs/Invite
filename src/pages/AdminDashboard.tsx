@@ -214,6 +214,7 @@ export default function AdminDashboard(): JSX.Element {
   const [adminRoles, setAdminRoles] = useState<AdminRoleDoc[]>([]);
   const [newAdminEntryId, setNewAdminEntryId] = useState("");
   const [drilldown, setDrilldown] = useState<{ title: string; rows: DrillRow[] } | null>(null);
+  const [incidentModeOpen, setIncidentModeOpen] = useState(false);
   const isMobile = useIsMobile();
   const entryNameMap = useMemo(() => {
     const pairs = Object.entries(guests).map(([name, entryId]) => [entryId, name]);
@@ -353,6 +354,13 @@ export default function AdminDashboard(): JSX.Element {
       .filter((log: ActivityLog) => suspiciousSet.has(log.deviceId ?? "unknown-device"))
       .slice(0, 12);
   }, [activityLogs, suspiciousDevices]);
+
+  const activeWarnings = useMemo(() => {
+    return Array.from(guestWarnings.values())
+      .filter((warning) => warning.isActive)
+      .sort((a, b) => Number(b.warningCount ?? 0) - Number(a.warningCount ?? 0));
+  }, [guestWarnings]);
+
 
   const allGameRows = useMemo<NormalizedGameRow[]>(() => {
     const rows: NormalizedGameRow[] = [];
@@ -602,6 +610,214 @@ export default function AdminDashboard(): JSX.Element {
     return [...suspiciousDominance, ...rapidVoters].slice(0, 8);
   }, [filteredGameRows, gamesStats.categories]);
 
+  const mealMixData = useMemo(
+    () =>
+      [
+        { name: "Veg", value: stats.veg },
+        { name: "Non-Veg", value: stats.nonVeg }
+      ].filter((item) => item.value > 0),
+    [stats.veg, stats.nonVeg]
+  );
+
+  const activityTrendData = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      return date;
+    });
+
+    return days.map((day) => {
+      const next = new Date(day);
+      next.setDate(next.getDate() + 1);
+      const count = activityLogs.filter((log) => {
+        const logDate = log.timestamp?.toDate?.() ?? (log.clientTime ? new Date(log.clientTime) : null);
+        if (!(logDate instanceof Date) || Number.isNaN(logDate.getTime())) return false;
+        return logDate >= day && logDate < next;
+      }).length;
+
+      return {
+        name: day.toLocaleDateString([], { month: "short", day: "numeric" }),
+        value: count
+      };
+    });
+  }, [activityLogs]);
+
+  const actionBreakdownData = useMemo(() => {
+    const counts = new Map<string, number>();
+    activityLogs.forEach((log) => {
+      const key = (log.type ?? "unknown").trim() || "unknown";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [activityLogs]);
+
+  const deviceRiskRows = useMemo(() => {
+    return allDevices
+      .map((device) => {
+        const warningHits = device.accountPairs.reduce((sum, pair) => {
+          const warningCount = Number(guestWarnings.get(pair.entryId)?.warningCount ?? 0);
+          return sum + warningCount;
+        }, 0);
+
+        const score = Math.min(
+          100,
+          device.accounts.length * 22 +
+            Math.min(device.events, 20) * 2 +
+            (blockedDeviceIds.has(device.deviceId) ? 18 : 0) +
+            warningHits * 8
+        );
+
+        return {
+          ...device,
+          warningHits,
+          score
+        };
+      })
+      .sort((a, b) => b.score - a.score || b.events - a.events)
+      .slice(0, 6);
+  }, [allDevices, guestWarnings, blockedDeviceIds]);
+
+  const recentActivityCount = useMemo(() => {
+    const threshold = Date.now() - 24 * 60 * 60 * 1000;
+    return activityLogs.filter((log) => {
+      const date = log.timestamp?.toDate?.() ?? (log.clientTime ? new Date(log.clientTime) : null);
+      return date instanceof Date && !Number.isNaN(date.getTime()) && date.getTime() >= threshold;
+    }).length;
+  }, [activityLogs]);
+
+  const incidentCards = useMemo(
+    () => [
+      {
+        id: "warnings",
+        label: "Active Warnings",
+        value: String(activeWarnings.length),
+        tone: activeWarnings.length > 0 ? "#ff7b7b" : "#7cc4ff"
+      },
+      {
+        id: "devices",
+        label: "Flagged Devices",
+        value: String(suspiciousDevices.length),
+        tone: suspiciousDevices.length > 0 ? "#ffd57a" : "#7cc4ff"
+      },
+      {
+        id: "votes",
+        label: "Vote Insights",
+        value: String(suspiciousVoteInsights.length),
+        tone: suspiciousVoteInsights.length > 0 ? "#c2a2ff" : "#7cc4ff"
+      },
+      {
+        id: "events",
+        label: "Suspicious Events",
+        value: String(suspiciousEvents.length),
+        tone: suspiciousEvents.length > 0 ? "#ffb05c" : "#7cc4ff"
+      }
+    ],
+    [
+      activeWarnings.length,
+      suspiciousDevices.length,
+      suspiciousVoteInsights.length,
+      suspiciousEvents.length
+    ]
+  );
+
+  const missionControlMetrics = useMemo(() => {
+    const riskIndex = Math.min(
+      100,
+      suspiciousDevices.length * 18 +
+        activeWarnings.length * 12 +
+        suspiciousVoteInsights.length * 9 +
+        blockedDeviceIds.size * 6
+    );
+
+    const guestResponse = stats.total > 0 ? Math.round((stats.attending / stats.total) * 100) : 0;
+    const voteIntegrity = Math.max(
+      0,
+      100 - suspiciousVoteInsights.length * 10 - suspiciousDevices.length * 6 - activeWarnings.length * 4
+    );
+    const opsLoad = Math.min(100, recentActivityCount * 4 + activityLogs.length / 10);
+
+    return [
+      {
+        label: "Risk Index",
+        value: riskIndex,
+        tone: riskIndex >= 70 ? "#ff7b7b" : riskIndex >= 40 ? "#ffd57a" : "#49d17d"
+      },
+      {
+        label: "Guest Response",
+        value: guestResponse,
+        tone: "#7cc4ff"
+      },
+      {
+        label: "Vote Integrity",
+        value: voteIntegrity,
+        tone: voteIntegrity < 60 ? "#ffb05c" : "#8ddf8d"
+      },
+      {
+        label: "Ops Load",
+        value: Math.round(opsLoad),
+        tone: "#c2a2ff"
+      }
+    ];
+  }, [
+    suspiciousDevices.length,
+    activeWarnings.length,
+    suspiciousVoteInsights.length,
+    blockedDeviceIds.size,
+    stats.total,
+    stats.attending,
+    recentActivityCount,
+    activityLogs.length
+  ]);
+
+  const overviewCommandCards = useMemo(
+    () => [
+      {
+        id: "risk",
+        eyebrow: "Moderation",
+        title: "Review live activity",
+        copy: "Jump into event logs and device abuse checks when the dashboard sees risky overlap.",
+        value: `${suspiciousDevices.length} flagged devices`,
+        action: () => setActiveSection("activity")
+      },
+      {
+        id: "guest",
+        eyebrow: "Guests",
+        title: "Clean up RSVPs",
+        copy: "Fix attendance, meals, and final guest state before event-day operations.",
+        value: `${stats.attending}/${stats.total} attending`,
+        action: () => setActiveSection("rsvps")
+      },
+      {
+        id: "games",
+        eyebrow: "Votes",
+        title: "Inspect games analytics",
+        copy: "Open charts, drilldowns, and suspicious voting insights with current filters.",
+        value: `${gamesStats.uniqueVoterCount} unique voters`,
+        action: () => setActiveSection("games")
+      },
+      {
+        id: "governance",
+        eyebrow: "Control",
+        title: "Lock governance actions",
+        copy: "Export reports, manage admin access, and control result finalization.",
+        value: governanceState.finalized ? "Results finalized" : "Results open",
+        action: () => setActiveSection("games_monitor")
+      }
+    ],
+    [
+      suspiciousDevices.length,
+      stats.attending,
+      stats.total,
+      gamesStats.uniqueVoterCount,
+      governanceState.finalized
+    ]
+  );
+
   const drilldownFilteredRows = useMemo(() => {
     if (!drilldown) return [];
     const q = drillSearch.trim().toLowerCase();
@@ -624,6 +840,84 @@ export default function AdminDashboard(): JSX.Element {
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
   }, [drilldownFilteredRows]);
+
+  const layoutStatusItems = useMemo(() => {
+    switch (activeSection) {
+      case "overview":
+        return [
+          { label: "Role", value: authBadge },
+          { label: "Warnings", value: String(activeWarnings.length) },
+          { label: "Flagged Devices", value: String(suspiciousDevices.length) },
+          { label: "Games Participation", value: `${gamesStats.participationRate}%` }
+        ];
+      case "rsvps":
+        return [
+          { label: "Guests", value: String(stats.total) },
+          { label: "Attending", value: String(stats.attending) },
+          { label: "Veg", value: String(stats.veg) },
+          { label: "Non-Veg", value: String(stats.nonVeg) }
+        ];
+      case "songs":
+        return [
+          { label: "Requests", value: String(songs.length) },
+          { label: "Latest Slice", value: String(recentSongs.length) },
+          { label: "Role", value: authBadge }
+        ];
+      case "suggestions":
+        return [
+          { label: "Suggestions", value: String(suggestions.length) },
+          { label: "Active Warnings", value: String(activeWarnings.length) },
+          { label: "Role", value: authBadge }
+        ];
+      case "activity":
+        return [
+          { label: "Events", value: String(activityLogs.length) },
+          { label: "Warnings", value: String(activeWarnings.length) },
+          { label: "Flagged Devices", value: String(suspiciousDevices.length) }
+        ];
+      case "device_watch":
+        return [
+          { label: "Tracked Devices", value: String(allDevices.length) },
+          { label: "Suspicious", value: String(suspiciousDevices.length) },
+          { label: "Blocked", value: String(blockedDeviceIds.size) }
+        ];
+      case "games":
+        return [
+          { label: "Unique Voters", value: String(gamesStats.uniqueVoterCount) },
+          { label: "Participation", value: `${gamesStats.participationRate}%` },
+          { label: "Insights", value: String(suspiciousVoteInsights.length) }
+        ];
+      case "games_monitor":
+        return [
+          { label: "Admins", value: String(adminRoles.length + 1) },
+          { label: "Audit Logs", value: String(auditLogs.length) },
+          { label: "Finalized", value: governanceState.finalized ? "Yes" : "No" }
+        ];
+      default:
+        return [];
+    }
+  }, [
+    activeSection,
+    authBadge,
+    activeWarnings.length,
+    suspiciousDevices.length,
+    gamesStats.participationRate,
+    stats.total,
+    stats.attending,
+    stats.veg,
+    stats.nonVeg,
+    songs.length,
+    recentSongs.length,
+    suggestions.length,
+    activityLogs.length,
+    allDevices.length,
+    blockedDeviceIds.size,
+    gamesStats.uniqueVoterCount,
+    suspiciousVoteInsights.length,
+    adminRoles.length,
+    auditLogs.length,
+    governanceState.finalized
+  ]);
 
   useEffect(() => {
     let unsubEntries = () => {};
@@ -1292,6 +1586,14 @@ export default function AdminDashboard(): JSX.Element {
                   <span style={mobileKpiValue}>{stats.attending}</span>
                 </div>
                 <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Veg Meals</span>
+                  <span style={mobileKpiValue}>{stats.veg}</span>
+                </div>
+                <div style={mobileKpiCard}>
+                  <span style={mobileKpiLabel}>Non-Veg Meals</span>
+                  <span style={mobileKpiValue}>{stats.nonVeg}</span>
+                </div>
+                <div style={mobileKpiCard}>
                   <span style={mobileKpiLabel}>Suspicious Devices</span>
                   <span style={mobileKpiValue}>{suspiciousDevices.length}</span>
                 </div>
@@ -1300,6 +1602,141 @@ export default function AdminDashboard(): JSX.Element {
                   <span style={mobileKpiValue}>{authBadge}</span>
                 </div>
               </div>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Action Center</p>
+                <h3 style={mobileSectionTitle}>Fast routes into the highest-leverage work</h3>
+                <p style={mobileSectionCopy}>This compresses the busiest admin moves into one place so mobile stays as capable as desktop.</p>
+              </div>
+              <div style={commandCardGrid}>
+                {overviewCommandCards.map((item) => (
+                  <button key={item.id} style={commandCard} onClick={item.action}>
+                    <span style={commandCardEyebrow}>{item.eyebrow}</span>
+                    <strong style={commandCardTitle}>{item.title}</strong>
+                    <span style={commandCardCopy}>{item.copy}</span>
+                    <span style={commandCardValue}>{item.value}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Alerts</p>
+                <h3 style={mobileSectionTitle}>Warning watchlist</h3>
+                <p style={mobileSectionCopy}>Guests with active warnings stay visible here for faster moderation follow-up.</p>
+              </div>
+              {activeWarnings.length === 0 ? (
+                <p style={mutedText}>No active warnings right now.</p>
+              ) : (
+                <div style={mobileFeed}>
+                  {activeWarnings.slice(0, 4).map((warning) => (
+                    <article key={warning.entryId} style={alertRailCard}>
+                      <div style={mobileLogHeader}>
+                        <div>
+                          <p style={mobileLogTitle}>{warning.name || warning.entryId}</p>
+                          <p style={mutedTextSmall}>Entry ID {warning.entryId}</p>
+                        </div>
+                        <span style={badge("#ff6b6b")}>Warnings: {warning.warningCount}</span>
+                      </div>
+                      <p style={alertRailCopy}>{warning.message}</p>
+                      <div style={controlsStyle}>
+                        {renderGuestModerationControls(warning.entryId, warning.name)}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Mission Control</p>
+                <h3 style={mobileSectionTitle}>Live signals that explain event health</h3>
+                <p style={mobileSectionCopy}>This is the compact operations layer: risk, response, vote quality, and recent load.</p>
+              </div>
+              <div style={missionMetricGrid}>
+                {missionControlMetrics.map((metric) => (
+                  <article key={metric.label} style={missionMetricCard}>
+                    <div style={missionMetricHeader}>
+                      <span style={missionMetricLabel}>{metric.label}</span>
+                      <strong style={{ ...missionMetricValue, color: metric.tone }}>{metric.value}%</strong>
+                    </div>
+                    <div style={metricTrack}>
+                      <div
+                        style={{
+                          ...metricFill(metric.value),
+                          background: `linear-gradient(90deg, ${metric.tone}, rgba(255,255,255,0.18))`
+                        }}
+                      />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Visuals</p>
+                <h3 style={mobileSectionTitle}>Operational mix and trendlines</h3>
+                <p style={mobileSectionCopy}>Deeper data viz for meals, live activity, and action composition.</p>
+              </div>
+              <div style={mobileStack}>
+                <div style={mobileMiniCard}>
+                  <h4 style={miniPanelTitle}>Meal Mix</h4>
+                  <ChartDonut data={mealMixData} emptyLabel="No meal selections yet." onSliceClick={() => null} compact />
+                </div>
+                <div style={mobileMiniCard}>
+                  <h4 style={miniPanelTitle}>Activity Trend</h4>
+                  <ChartBars data={activityTrendData} emptyLabel="No activity yet." onBarClick={() => setActiveSection("activity")} compact />
+                </div>
+                <div style={mobileMiniCard}>
+                  <h4 style={miniPanelTitle}>Action Breakdown</h4>
+                  <ChartDonut data={actionBreakdownData} emptyLabel="No actions yet." onSliceClick={() => setActiveSection("activity")} compact />
+                </div>
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Risk</p>
+                <h3 style={mobileSectionTitle}>Device pressure ladder</h3>
+                <p style={mobileSectionCopy}>The highest-risk devices are ranked with account overlap, event volume, and warning linkage.</p>
+              </div>
+              {deviceRiskRows.length === 0 ? (
+                <p style={mutedText}>No device pressure detected yet.</p>
+              ) : (
+                <div style={riskList}>
+                  {deviceRiskRows.map((device) => (
+                    <article key={device.deviceId} style={riskItemCard}>
+                      <div style={riskItemHeader}>
+                        <div>
+                          <strong style={riskItemTitle}>{shortDevice(device.deviceId)}</strong>
+                          <p style={riskItemCopy}>{device.accounts.length} accounts • {device.events} events • {device.warningHits} warning hits</p>
+                        </div>
+                        <span style={badge(device.score >= 70 ? "#ff7b7b" : device.score >= 40 ? "#ffd57a" : "#7cc4ff")}>
+                          Risk {device.score}
+                        </span>
+                      </div>
+                      <div style={metricTrack}>
+                        <div
+                          style={{
+                            ...metricFill(device.score),
+                            background:
+                              device.score >= 70
+                                ? "linear-gradient(90deg, #ff7b7b, rgba(255,123,123,0.18))"
+                                : device.score >= 40
+                                  ? "linear-gradient(90deg, #ffd57a, rgba(255,213,122,0.18))"
+                                  : "linear-gradient(90deg, #7cc4ff, rgba(124,196,255,0.18))"
+                          }}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
 
             <div style={mobileCardGrid}>
@@ -1437,137 +1874,222 @@ export default function AdminDashboard(): JSX.Element {
         return <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} />;
       case "activity":
         return (
-          <section style={panelStyle}>
-            <div style={mobileSectionHeader}>
-              <p style={mobileSectionEyebrow}>Activity</p>
-              <h3 style={mobileSectionTitle}>Recent Activity Logs</h3>
-              <p style={mobileSectionCopy}>Operational log with moderation actions and device controls.</p>
-            </div>
-            {activityLogs.length === 0 ? (
-              <p style={mutedText}>No activity logs yet.</p>
-            ) : (
-              <div style={mobileFeed}>
-                {activityLogs.slice(0, activityVisibleCount).map((log: ActivityLog) => (
-                  <article key={log.id} style={mobileLogCard}>
-                    <div style={mobileLogHeader}>
-                      <div>
-                        <p style={mobileLogTitle}>{log.type ?? "Unknown action"}</p>
-                        <p style={mutedTextSmall}>{formatLogTime(log)}</p>
-                      </div>
-                      {log.deviceId ? (
-                        <span style={badge(blockedDeviceIds.has(log.deviceId) ? "#ff4d4f" : "#7cc4ff")}>
-                          {blockedDeviceIds.has(log.deviceId) ? "Blocked Device" : "Device Active"}
-                        </span>
-                      ) : (
-                        <span style={badge("#7f8a96")}>No Device</span>
-                      )}
-                    </div>
-
-                    <div style={mobileMetaGrid}>
-                      <div style={mobileMetaItem}>
-                        <span style={mobileMetaLabel}>Guest</span>
-                        <span style={mobileMetaValue}>{log.name ?? "-"}</span>
-                      </div>
-                      <div style={mobileMetaItem}>
-                        <span style={mobileMetaLabel}>Entry ID</span>
-                        <span style={mobileMetaValue}>{log.entryId ?? "-"}</span>
-                      </div>
-                      <div style={mobileMetaItem}>
-                        <span style={mobileMetaLabel}>Device</span>
-                        <span style={mobileMetaValue}>{shortDevice(log.deviceId ?? "unknown-device")}</span>
-                      </div>
-                      <div style={mobileMetaItem}>
-                        <span style={mobileMetaLabel}>Details</span>
-                        <span style={mobileMetaValue}>{log.details || "-"}</span>
-                      </div>
-                    </div>
-
-                    <div style={controlsStyle}>
-                      {log.entryId && renderGuestModerationControls(log.entryId, log.name)}
-                      {log.deviceId && (
-                        <button
-                          style={blockBtn(blockedDeviceIds.has(log.deviceId))}
-                          onClick={() => handleToggleDeviceBlock(log.deviceId as string)}
-                          disabled={!isAdmin}
-                        >
-                          {blockedDeviceIds.has(log.deviceId) ? "Unblock Device" : "Block Device"}
-                        </button>
-                      )}
+          <div style={mobilePage}>
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Activity Intelligence</p>
+                <h3 style={mobileSectionTitle}>Trend, composition, and live load</h3>
+                <p style={mobileSectionCopy}>Mobile gets the same signal layer: event trend, action mix, and ops pressure.</p>
+              </div>
+              <div style={mobileStack}>
+                <div style={mobileMiniCard}>
+                  <h4 style={miniPanelTitle}>Activity Trend</h4>
+                  <ChartBars data={activityTrendData} emptyLabel="No activity yet." onBarClick={() => null} compact />
+                </div>
+                <div style={mobileMiniCard}>
+                  <h4 style={miniPanelTitle}>Action Breakdown</h4>
+                  <ChartDonut data={actionBreakdownData} emptyLabel="No actions yet." onSliceClick={() => null} compact />
+                </div>
+                <div style={missionMetricGrid}>
+                  <article style={missionMetricCard}>
+                    <div style={missionMetricHeader}>
+                      <span style={missionMetricLabel}>Last 24h</span>
+                      <strong style={missionMetricValue}>{recentActivityCount}</strong>
                     </div>
                   </article>
-                ))}
+                  <article style={missionMetricCard}>
+                    <div style={missionMetricHeader}>
+                      <span style={missionMetricLabel}>Warnings</span>
+                      <strong style={missionMetricValue}>{activeWarnings.length}</strong>
+                    </div>
+                  </article>
+                </div>
               </div>
-            )}
-            {activityLogs.length > activityVisibleCount && (
-              <div style={{ marginTop: 12 }}>
-                <button
-                  style={toggleViewBtn(false)}
-                  onClick={() => setActivityVisibleCount((count) => count + 120)}
-                >
-                  Load more
-                </button>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Activity</p>
+                <h3 style={mobileSectionTitle}>Recent Activity Logs</h3>
+                <p style={mobileSectionCopy}>Operational log with moderation actions and device controls.</p>
               </div>
-            )}
-          </section>
+              {activityLogs.length === 0 ? (
+                <p style={mutedText}>No activity logs yet.</p>
+              ) : (
+                <div style={mobileFeed}>
+                  {activityLogs.slice(0, activityVisibleCount).map((log: ActivityLog) => (
+                    <article key={log.id} style={mobileLogCard}>
+                      <div style={mobileLogHeader}>
+                        <div>
+                          <p style={mobileLogTitle}>{log.type ?? "Unknown action"}</p>
+                          <p style={mutedTextSmall}>{formatLogTime(log)}</p>
+                        </div>
+                        {log.deviceId ? (
+                          <span style={badge(blockedDeviceIds.has(log.deviceId) ? "#ff4d4f" : "#7cc4ff")}>
+                            {blockedDeviceIds.has(log.deviceId) ? "Blocked Device" : "Device Active"}
+                          </span>
+                        ) : (
+                          <span style={badge("#7f8a96")}>No Device</span>
+                        )}
+                      </div>
+
+                      <div style={mobileMetaGrid}>
+                        <div style={mobileMetaItem}>
+                          <span style={mobileMetaLabel}>Guest</span>
+                          <span style={mobileMetaValue}>{log.name ?? "-"}</span>
+                        </div>
+                        <div style={mobileMetaItem}>
+                          <span style={mobileMetaLabel}>Entry ID</span>
+                          <span style={mobileMetaValue}>{log.entryId ?? "-"}</span>
+                        </div>
+                        <div style={mobileMetaItem}>
+                          <span style={mobileMetaLabel}>Device</span>
+                          <span style={mobileMetaValue}>{shortDevice(log.deviceId ?? "unknown-device")}</span>
+                        </div>
+                        <div style={mobileMetaItem}>
+                          <span style={mobileMetaLabel}>Details</span>
+                          <span style={mobileMetaValue}>{log.details || "-"}</span>
+                        </div>
+                      </div>
+
+                      <div style={controlsStyle}>
+                        {log.entryId && renderGuestModerationControls(log.entryId, log.name)}
+                        {log.deviceId && (
+                          <button
+                            style={blockBtn(blockedDeviceIds.has(log.deviceId))}
+                            onClick={() => handleToggleDeviceBlock(log.deviceId as string)}
+                            disabled={!isAdmin}
+                          >
+                            {blockedDeviceIds.has(log.deviceId) ? "Unblock Device" : "Block Device"}
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              {activityLogs.length > activityVisibleCount && (
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    style={toggleViewBtn(false)}
+                    onClick={() => setActivityVisibleCount((count) => count + 120)}
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
+            </section>
+          </div>
         );
       case "device_watch":
         return (
-          <section style={panelStyle}>
-            <div style={mobileSectionHeader}>
-              <p style={mobileSectionEyebrow}>Devices</p>
-              <h3 style={mobileSectionTitle}>All Devices</h3>
-              <p style={mobileSectionCopy}>Device-level review for multi-account behavior and manual blocking.</p>
-            </div>
-
-            {allDevices.length === 0 ? (
-              <p style={mutedText}>No device logs found yet.</p>
-            ) : (
-              <div style={mobileFeed}>
-                {allDevices.map((device) => (
-                  <article key={device.deviceId} style={mobileLogCard}>
-                    <div style={mobileLogHeader}>
-                      <div>
-                        <p style={mobileLogTitle}>{shortDevice(device.deviceId)}</p>
-                        <p style={mutedTextSmall}>{device.events} logged events</p>
-                      </div>
-                      <span style={badge(blockedDeviceIds.has(device.deviceId) ? "#ff4d4f" : "#ff8c42")}>
-                        {blockedDeviceIds.has(device.deviceId) ? "Blocked" : `${device.accounts.length} accounts`}
-                      </span>
-                    </div>
-
-                    <div style={mobileMetaGrid}>
-                      <div style={mobileMetaItem}>
-                        <span style={mobileMetaLabel}>Accounts</span>
-                        <span style={mobileMetaValue}>{device.accounts.join(", ") || "-"}</span>
-                      </div>
-                      <div style={mobileMetaItem}>
-                        <span style={mobileMetaLabel}>Guests</span>
-                        <span style={mobileMetaValue}>{device.names.join(", ") || "-"}</span>
-                      </div>
-                    </div>
-
-                    <div style={chipWrapStyle}>
-                      {device.accountPairs.map((item) => (
-                        <div key={item.entryId}>
-                          {renderGuestModerationControls(item.entryId, item.name)}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={controlsStyle}>
-                      <button
-                        style={blockBtn(blockedDeviceIds.has(device.deviceId))}
-                        onClick={() => handleToggleDeviceBlock(device.deviceId)}
-                        disabled={!isAdmin}
-                      >
-                        {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
+          <div style={mobilePage}>
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Risk Ladder</p>
+                <h3 style={mobileSectionTitle}>Mobile device intelligence</h3>
+                <p style={mobileSectionCopy}>Ranked pressure view for device overlap, event volume, and warning-linked accounts.</p>
               </div>
-            )}
-          </section>
+              <div style={mobileStack}>
+                <div style={mobileMiniCard}>
+                  <h4 style={miniPanelTitle}>Overlap Pulse</h4>
+                  <ChartBars
+                    data={deviceRiskRows.map((device) => ({ name: shortDevice(device.deviceId), value: device.accounts.length }))}
+                    emptyLabel="No overlap yet."
+                    onBarClick={() => null}
+                    compact
+                  />
+                </div>
+                {deviceRiskRows.length > 0 && (
+                  <div style={riskList}>
+                    {deviceRiskRows.map((device) => (
+                      <article key={device.deviceId} style={riskItemCard}>
+                        <div style={riskItemHeader}>
+                          <div>
+                            <strong style={riskItemTitle}>{shortDevice(device.deviceId)}</strong>
+                            <p style={riskItemCopy}>{device.accounts.length} accounts • {device.events} events • {device.warningHits} warning hits</p>
+                          </div>
+                          <span style={badge(device.score >= 70 ? "#ff7b7b" : device.score >= 40 ? "#ffd57a" : "#7cc4ff")}>
+                            Risk {device.score}
+                          </span>
+                        </div>
+                        <div style={metricTrack}>
+                          <div
+                            style={{
+                              ...metricFill(device.score),
+                              background:
+                                device.score >= 70
+                                  ? "linear-gradient(90deg, #ff7b7b, rgba(255,123,123,0.18))"
+                                  : device.score >= 40
+                                    ? "linear-gradient(90deg, #ffd57a, rgba(255,213,122,0.18))"
+                                    : "linear-gradient(90deg, #7cc4ff, rgba(124,196,255,0.18))"
+                            }}
+                          />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={mobileSectionHeader}>
+                <p style={mobileSectionEyebrow}>Devices</p>
+                <h3 style={mobileSectionTitle}>All Devices</h3>
+                <p style={mobileSectionCopy}>Device-level review for multi-account behavior and manual blocking.</p>
+              </div>
+
+              {allDevices.length === 0 ? (
+                <p style={mutedText}>No device logs found yet.</p>
+              ) : (
+                <div style={mobileFeed}>
+                  {allDevices.map((device) => (
+                    <article key={device.deviceId} style={mobileLogCard}>
+                      <div style={mobileLogHeader}>
+                        <div>
+                          <p style={mobileLogTitle}>{shortDevice(device.deviceId)}</p>
+                          <p style={mutedTextSmall}>{device.events} logged events</p>
+                        </div>
+                        <span style={badge(blockedDeviceIds.has(device.deviceId) ? "#ff4d4f" : "#ff8c42")}>
+                          {blockedDeviceIds.has(device.deviceId) ? "Blocked" : `${device.accounts.length} accounts`}
+                        </span>
+                      </div>
+
+                      <div style={mobileMetaGrid}>
+                        <div style={mobileMetaItem}>
+                          <span style={mobileMetaLabel}>Accounts</span>
+                          <span style={mobileMetaValue}>{device.accounts.join(", ") || "-"}</span>
+                        </div>
+                        <div style={mobileMetaItem}>
+                          <span style={mobileMetaLabel}>Guests</span>
+                          <span style={mobileMetaValue}>{device.names.join(", ") || "-"}</span>
+                        </div>
+                      </div>
+
+                      <div style={chipWrapStyle}>
+                        {device.accountPairs.map((item) => (
+                          <div key={item.entryId}>
+                            {renderGuestModerationControls(item.entryId, item.name)}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={controlsStyle}>
+                        <button
+                          style={blockBtn(blockedDeviceIds.has(device.deviceId))}
+                          onClick={() => handleToggleDeviceBlock(device.deviceId)}
+                          disabled={!isAdmin}
+                        >
+                          {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         );
       case "games":
         return (
@@ -2152,41 +2674,50 @@ export default function AdminDashboard(): JSX.Element {
   };
 
   return (
-    <AdminLayout
-      navItems={[
-        { key: "overview", label: "Overview" },
-        { key: "rsvps", label: "RSVP Manager" },
-        { key: "songs", label: "Song Requests" },
-        { key: "suggestions", label: "Suggestions" },
-        { key: "activity", label: "Activity Monitor" },
-        { key: "device_watch", label: "Device Watch" },
-        { key: "games", label: "Games Votes" },
-        { key: "games_monitor", label: "Admin Monitor" }
-      ]}
-      activeSection={activeSection}
-      onSectionChange={setActiveSection}
-      title={
-        activeSection === "overview"
-          ? "Admin Dashboard"
-          : activeSection === "rsvps"
-            ? "RSVP Manager"
-            : activeSection === "songs"
-              ? "Song Requests"
-              : activeSection === "suggestions"
-                ? "Guest Suggestions"
-                : activeSection === "activity"
-                  ? "Activity Monitor"
-                  : activeSection === "device_watch"
-                    ? "Device Watch"
-                    : activeSection === "games"
-                      ? "Games Votes"
-                      : "Admin Monitor"
-      }
-      subtitle={`Live data updates from Firestore • ${authBadge}`}
-      onLogout={handleLogout}
-    >
-      {!isMobile && (
-        <>
+    <>
+      <AdminLayout
+        navItems={[
+          { key: "overview", label: "Overview" },
+          { key: "rsvps", label: "RSVP Manager" },
+          { key: "songs", label: "Song Requests" },
+          { key: "suggestions", label: "Suggestions" },
+          { key: "activity", label: "Activity Monitor" },
+          { key: "device_watch", label: "Device Watch" },
+          { key: "games", label: "Games Votes" },
+          { key: "games_monitor", label: "Admin Monitor" }
+        ]}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+        title={
+          activeSection === "overview"
+            ? "Admin Dashboard"
+            : activeSection === "rsvps"
+              ? "RSVP Manager"
+              : activeSection === "songs"
+                ? "Song Requests"
+                : activeSection === "suggestions"
+                  ? "Guest Suggestions"
+                  : activeSection === "activity"
+                    ? "Activity Monitor"
+                    : activeSection === "device_watch"
+                      ? "Device Watch"
+                      : activeSection === "games"
+                        ? "Games Votes"
+                        : "Admin Monitor"
+        }
+        subtitle={`Live data updates from Firestore • ${authBadge}`}
+        statusItems={layoutStatusItems}
+        onLogout={handleLogout}
+      >
+        <button
+          type="button"
+          style={incidentFab}
+          onClick={() => setIncidentModeOpen(true)}
+        >
+          Incident Mode
+        </button>
+        {!isMobile && (
+          <>
       {activeSection === "overview" && (
         <>
           <section style={desktopHero}>
@@ -2214,6 +2745,141 @@ export default function AdminDashboard(): JSX.Element {
           </section>
 
           <AdminStats stats={stats} />
+
+          <section style={commandDeck}>
+            <div style={commandDeckMain}>
+              <div style={sectionIntro}>
+                <p style={sectionEyebrow}>Action Center</p>
+                <h3 style={sectionTitle}>High-priority admin moves, surfaced immediately</h3>
+                <p style={sectionCopy}>
+                  Instead of hunting through sections, use these launch cards to jump straight into the pressure points.
+                </p>
+              </div>
+              <div style={commandCardGrid}>
+                {overviewCommandCards.map((item) => (
+                  <button key={item.id} style={commandCard} onClick={item.action}>
+                    <span style={commandCardEyebrow}>{item.eyebrow}</span>
+                    <strong style={commandCardTitle}>{item.title}</strong>
+                    <span style={commandCardCopy}>{item.copy}</span>
+                    <span style={commandCardValue}>{item.value}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <aside style={alertRail}>
+              <div style={sectionIntroCompact}>
+                <p style={sectionEyebrow}>Warnings</p>
+                <h3 style={sectionTitle}>Live watchlist</h3>
+                <p style={sectionCopy}>Guests with active warnings stay pinned here for quick intervention.</p>
+              </div>
+              {activeWarnings.length === 0 ? (
+                <p style={mutedText}>No active warnings right now.</p>
+              ) : (
+                <div style={alertRailList}>
+                  {activeWarnings.slice(0, 4).map((warning) => (
+                    <article key={warning.entryId} style={alertRailCard}>
+                      <div style={mobileLogHeader}>
+                        <div>
+                          <p style={mobileLogTitle}>{warning.name || warning.entryId}</p>
+                          <p style={mutedTextSmall}>Entry ID {warning.entryId}</p>
+                        </div>
+                        <span style={badge("#ff6b6b")}>Warnings: {warning.warningCount}</span>
+                      </div>
+                      <p style={alertRailCopy}>{warning.message}</p>
+                      {renderGuestModerationControls(warning.entryId, warning.name)}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </aside>
+          </section>
+
+          <section style={missionControlSection}>
+            <div style={panelStyle}>
+              <div style={sectionIntro}>
+                <p style={sectionEyebrow}>Mission Control</p>
+                <h3 style={sectionTitle}>Signal board for risk, turnout, vote quality, and ops pressure</h3>
+                <p style={sectionCopy}>
+                  This is the strategy layer of the dashboard: not just raw counts, but what they imply about the event right now.
+                </p>
+              </div>
+              <div style={missionMetricGrid}>
+                {missionControlMetrics.map((metric) => (
+                  <article key={metric.label} style={missionMetricCard}>
+                    <div style={missionMetricHeader}>
+                      <span style={missionMetricLabel}>{metric.label}</span>
+                      <strong style={{ ...missionMetricValue, color: metric.tone }}>{metric.value}%</strong>
+                    </div>
+                    <div style={metricTrack}>
+                      <div
+                        style={{
+                          ...metricFill(metric.value),
+                          background: `linear-gradient(90deg, ${metric.tone}, rgba(255,255,255,0.18))`
+                        }}
+                      />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div style={overviewGridStyle}>
+              <div style={panelStyle}>
+                <h3 style={panelTitle}>Meal Mix</h3>
+                <p style={mutedTextSmall}>Veg and non-veg distribution stay visible from overview now.</p>
+                <ChartDonut data={mealMixData} emptyLabel="No meal selections yet." onSliceClick={() => null} />
+              </div>
+              <div style={panelStyle}>
+                <h3 style={panelTitle}>Activity Trend</h3>
+                <p style={mutedTextSmall}>Seven-day motion helps spot surges before moderation gets messy.</p>
+                <ChartBars data={activityTrendData} emptyLabel="No activity yet." onBarClick={() => setActiveSection("activity")} />
+              </div>
+              <div style={panelStyle}>
+                <h3 style={panelTitle}>Action Breakdown</h3>
+                <p style={mutedTextSmall}>Which admin-side event types dominate the operational stream.</p>
+                <ChartDonut data={actionBreakdownData} emptyLabel="No actions yet." onSliceClick={() => setActiveSection("activity")} />
+              </div>
+              <div style={panelStyle}>
+                <h3 style={panelTitle}>Device Risk Ladder</h3>
+                <p style={mutedTextSmall}>Ranked from account overlap, event load, block state, and warning linkage.</p>
+                {deviceRiskRows.length === 0 ? (
+                  <p style={mutedText}>No device pressure detected yet.</p>
+                ) : (
+                  <div style={riskList}>
+                    {deviceRiskRows.map((device) => (
+                      <article key={device.deviceId} style={riskItemCard}>
+                        <div style={riskItemHeader}>
+                          <div>
+                            <strong style={riskItemTitle}>{shortDevice(device.deviceId)}</strong>
+                            <p style={riskItemCopy}>
+                              {device.accounts.length} accounts • {device.events} events • {device.warningHits} warning hits
+                            </p>
+                          </div>
+                          <span style={badge(device.score >= 70 ? "#ff7b7b" : device.score >= 40 ? "#ffd57a" : "#7cc4ff")}>
+                            Risk {device.score}
+                          </span>
+                        </div>
+                        <div style={metricTrack}>
+                          <div
+                            style={{
+                              ...metricFill(device.score),
+                              background:
+                                device.score >= 70
+                                  ? "linear-gradient(90deg, #ff7b7b, rgba(255,123,123,0.18))"
+                                  : device.score >= 40
+                                    ? "linear-gradient(90deg, #ffd57a, rgba(255,213,122,0.18))"
+                                    : "linear-gradient(90deg, #7cc4ff, rgba(124,196,255,0.18))"
+                            }}
+                          />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
 
           <div style={overviewGridStyle}>
             <section style={panelStyle}>
@@ -2332,7 +2998,38 @@ export default function AdminDashboard(): JSX.Element {
       {activeSection === "songs" && <SongsTable songs={songs} onDelete={handleDeleteSong} />}
       {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} />}
       {activeSection === "activity" && (
-        <div style={panelStyle}>
+        <div style={{ display: "grid", gap: 16 }}>
+          <section style={overviewGridStyle}>
+            <div style={panelStyle}>
+              <h3 style={panelTitle}>Activity Trend</h3>
+              <p style={mutedTextSmall}>Seven-day event flow for operational pacing.</p>
+              <ChartBars data={activityTrendData} emptyLabel="No activity yet." onBarClick={() => null} />
+            </div>
+            <div style={panelStyle}>
+              <h3 style={panelTitle}>Action Breakdown</h3>
+              <p style={mutedTextSmall}>Most common activity types across the current log stream.</p>
+              <ChartDonut data={actionBreakdownData} emptyLabel="No actions yet." onSliceClick={() => null} />
+            </div>
+            <div style={panelStyle}>
+              <h3 style={panelTitle}>Ops Snapshot</h3>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={statRow}>
+                  <span style={mutedText}>Last 24 Hours</span>
+                  <strong>{recentActivityCount}</strong>
+                </div>
+                <div style={statRow}>
+                  <span style={mutedText}>Flagged Devices</span>
+                  <strong>{suspiciousDevices.length}</strong>
+                </div>
+                <div style={statRow}>
+                  <span style={mutedText}>Active Warnings</span>
+                  <strong>{activeWarnings.length}</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div style={panelStyle}>
           <h3 style={panelTitle}>Recent Activity Logs</h3>
 
           <div style={activityTableWrap}>
@@ -2392,10 +3089,62 @@ export default function AdminDashboard(): JSX.Element {
               </button>
             </div>
           )}
+          </div>
         </div>
       )}
 
       {activeSection === "device_watch" && (
+        <div style={{ display: "grid", gap: 16 }}>
+          <section style={overviewGridStyle}>
+            <div style={panelStyle}>
+              <h3 style={panelTitle}>Device Risk Ladder</h3>
+              <p style={mutedTextSmall}>Higher scores combine account overlap, event volume, warning pressure, and block state.</p>
+              {deviceRiskRows.length === 0 ? (
+                <p style={mutedText}>No device pressure detected yet.</p>
+              ) : (
+                <div style={riskList}>
+                  {deviceRiskRows.map((device) => (
+                    <article key={device.deviceId} style={riskItemCard}>
+                      <div style={riskItemHeader}>
+                        <div>
+                          <strong style={riskItemTitle}>{shortDevice(device.deviceId)}</strong>
+                          <p style={riskItemCopy}>
+                            {device.accounts.length} accounts • {device.events} events • {device.warningHits} warning hits
+                          </p>
+                        </div>
+                        <span style={badge(device.score >= 70 ? "#ff7b7b" : device.score >= 40 ? "#ffd57a" : "#7cc4ff")}>
+                          Risk {device.score}
+                        </span>
+                      </div>
+                      <div style={metricTrack}>
+                        <div
+                          style={{
+                            ...metricFill(device.score),
+                            background:
+                              device.score >= 70
+                                ? "linear-gradient(90deg, #ff7b7b, rgba(255,123,123,0.18))"
+                                : device.score >= 40
+                                  ? "linear-gradient(90deg, #ffd57a, rgba(255,213,122,0.18))"
+                                  : "linear-gradient(90deg, #7cc4ff, rgba(124,196,255,0.18))"
+                          }}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={panelStyle}>
+              <h3 style={panelTitle}>Account Overlap Pulse</h3>
+              <p style={mutedTextSmall}>Devices with the largest account spread get surfaced immediately.</p>
+              <ChartBars
+                data={deviceRiskRows.map((device) => ({ name: shortDevice(device.deviceId), value: device.accounts.length }))}
+                emptyLabel="No overlap yet."
+                onBarClick={() => null}
+              />
+            </div>
+          </section>
+
         <div style={panelStyle}>
           <h3 style={panelTitle}>All Devices (Manual Block Controls)</h3>
 
@@ -2445,6 +3194,7 @@ export default function AdminDashboard(): JSX.Element {
               </table>
             </div>
           )}
+        </div>
         </div>
       )}
 
@@ -3033,8 +3783,147 @@ export default function AdminDashboard(): JSX.Element {
       )}
         </>
       )}
-      {isMobile && renderMobileContent()}
-    </AdminLayout>
+        {isMobile && renderMobileContent()}
+      </AdminLayout>
+
+      {incidentModeOpen && (
+        <div style={incidentOverlay} onClick={() => setIncidentModeOpen(false)}>
+          <div style={incidentPanel} onClick={(event) => event.stopPropagation()}>
+            <div style={incidentHeader}>
+              <div>
+                <p style={incidentEyebrow}>Incident Mode</p>
+                <h2 style={incidentTitle}>Fast moderation cockpit</h2>
+                <p style={incidentCopy}>
+                  Concentrated view of warnings, suspicious devices, vote anomalies, and the latest risky events.
+                </p>
+              </div>
+              <button style={closeBtn} onClick={() => setIncidentModeOpen(false)}>Close</button>
+            </div>
+
+            <section style={incidentMetricGrid}>
+              {incidentCards.map((card) => (
+                <article key={card.id} style={incidentMetricCard}>
+                  <span style={incidentMetricLabel}>{card.label}</span>
+                  <strong style={{ ...incidentMetricValue, color: card.tone }}>{card.value}</strong>
+                </article>
+              ))}
+            </section>
+
+            <section style={incidentGrid}>
+              <div style={incidentSection}>
+                <h3 style={panelTitle}>Active Warnings</h3>
+                {activeWarnings.length === 0 ? (
+                  <p style={mutedText}>No active warnings.</p>
+                ) : (
+                  <div style={incidentList}>
+                    {activeWarnings.slice(0, 6).map((warning) => (
+                      <article key={warning.entryId} style={incidentCard}>
+                        <div style={riskItemHeader}>
+                          <div>
+                            <strong style={riskItemTitle}>{warning.name || warning.entryId}</strong>
+                            <p style={riskItemCopy}>Entry ID {warning.entryId} • warnings {warning.warningCount}</p>
+                          </div>
+                          <span style={badge("#ff7b7b")}>Critical</span>
+                        </div>
+                        <p style={alertRailCopy}>{warning.message}</p>
+                        {renderGuestModerationControls(warning.entryId, warning.name)}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={incidentSection}>
+                <h3 style={panelTitle}>Device Threat Board</h3>
+                {deviceRiskRows.length === 0 ? (
+                  <p style={mutedText}>No device threats detected.</p>
+                ) : (
+                  <div style={incidentList}>
+                    {deviceRiskRows.map((device) => (
+                      <article key={device.deviceId} style={incidentCard}>
+                        <div style={riskItemHeader}>
+                          <div>
+                            <strong style={riskItemTitle}>{shortDevice(device.deviceId)}</strong>
+                            <p style={riskItemCopy}>{device.accounts.length} accounts • {device.events} events • {device.warningHits} warning hits</p>
+                          </div>
+                          <span style={badge(device.score >= 70 ? "#ff7b7b" : "#ffd57a")}>Risk {device.score}</span>
+                        </div>
+                        <div style={metricTrack}>
+                          <div
+                            style={{
+                              ...metricFill(device.score),
+                              background:
+                                device.score >= 70
+                                  ? "linear-gradient(90deg, #ff7b7b, rgba(255,123,123,0.18))"
+                                  : "linear-gradient(90deg, #ffd57a, rgba(255,213,122,0.18))"
+                            }}
+                          />
+                        </div>
+                        <div style={controlsStyle}>
+                          <button
+                            style={blockBtn(blockedDeviceIds.has(device.deviceId))}
+                            onClick={() => handleToggleDeviceBlock(device.deviceId)}
+                            disabled={!isAdmin}
+                          >
+                            {blockedDeviceIds.has(device.deviceId) ? "Unblock Device" : "Block Device"}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={incidentSection}>
+                <h3 style={panelTitle}>Vote Integrity Flags</h3>
+                {suspiciousVoteInsights.length === 0 ? (
+                  <p style={mutedText}>No vote anomalies under current filters.</p>
+                ) : (
+                  <div style={incidentList}>
+                    {suspiciousVoteInsights.map((item) => (
+                      <article key={item.id} style={incidentCard}>
+                        <div style={riskItemHeader}>
+                          <strong style={riskItemTitle}>{item.title}</strong>
+                          <button style={smallBtn} onClick={() => setActiveSection("games")}>
+                            Open Votes
+                          </button>
+                        </div>
+                        <p style={alertRailCopy}>{item.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={incidentSection}>
+                <h3 style={panelTitle}>Suspicious Events</h3>
+                {suspiciousEvents.length === 0 ? (
+                  <p style={mutedText}>No suspicious recent events.</p>
+                ) : (
+                  <div style={incidentList}>
+                    {suspiciousEvents.slice(0, 6).map((log) => (
+                      <article key={log.id} style={incidentCard}>
+                        <div style={riskItemHeader}>
+                          <div>
+                            <strong style={riskItemTitle}>{log.type ?? "Unknown action"}</strong>
+                            <p style={riskItemCopy}>{formatLogTime(log)}</p>
+                          </div>
+                          <span style={badge("#ffb05c")}>{shortDevice(log.deviceId ?? "unknown-device")}</span>
+                        </div>
+                        <p style={alertRailCopy}>
+                          {(log.name ?? "-")} • {(log.entryId ?? "-")} • {(log.details ?? "No details")}
+                        </p>
+                        {log.entryId ? renderGuestModerationControls(log.entryId, log.name) : null}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -3603,6 +4492,353 @@ const desktopGamesHero: CSSProperties = {
   padding: 18,
   background:
     "linear-gradient(140deg, rgba(255,213,122,0.12) 0%, rgba(255,140,66,0.06) 25%, rgba(255,255,255,0.03) 75%)"
+};
+
+const commandDeck: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1.4fr) minmax(300px, 0.8fr)",
+  gap: 16,
+  marginBottom: 18
+};
+
+const commandDeckMain: CSSProperties = {
+  ...panel,
+  borderRadius: 18,
+  padding: 18,
+  display: "grid",
+  gap: 16
+};
+
+const alertRail: CSSProperties = {
+  ...panel,
+  borderRadius: 18,
+  padding: 18,
+  display: "grid",
+  gap: 14,
+  alignContent: "start"
+};
+
+const sectionIntro: CSSProperties = {
+  display: "grid",
+  gap: 6
+};
+
+const sectionIntroCompact: CSSProperties = {
+  display: "grid",
+  gap: 5
+};
+
+const sectionEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#f5c768",
+  fontSize: 10,
+  letterSpacing: 1.1,
+  textTransform: "uppercase",
+  fontWeight: 800
+};
+
+const sectionTitle: CSSProperties = {
+  margin: 0,
+  color: "#fff7df",
+  fontSize: 21,
+  lineHeight: 1.15
+};
+
+const sectionCopy: CSSProperties = {
+  margin: 0,
+  color: "#aeb7c1",
+  fontSize: 13,
+  lineHeight: 1.5
+};
+
+const commandCardGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))",
+  gap: 12
+};
+
+const commandCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 18,
+  padding: "14px 15px",
+  background:
+    "linear-gradient(150deg, rgba(255,255,255,0.06) 0%, rgba(255,213,122,0.04) 25%, rgba(8,11,14,0.92) 100%)",
+  display: "grid",
+  gap: 8,
+  textAlign: "left",
+  color: "#fff",
+  cursor: "pointer",
+  boxShadow: "0 18px 32px rgba(0,0,0,0.16)"
+};
+
+const commandCardEyebrow: CSSProperties = {
+  color: "#f5c768",
+  fontSize: 10,
+  letterSpacing: 1,
+  textTransform: "uppercase",
+  fontWeight: 800
+};
+
+const commandCardTitle: CSSProperties = {
+  fontSize: 17,
+  lineHeight: 1.2
+};
+
+const commandCardCopy: CSSProperties = {
+  color: "#b5bec8",
+  fontSize: 12,
+  lineHeight: 1.5
+};
+
+const commandCardValue: CSSProperties = {
+  color: "#fff2cf",
+  fontSize: 12,
+  fontWeight: 800
+};
+
+const alertRailList: CSSProperties = {
+  display: "grid",
+  gap: 10
+};
+
+const alertRailCard: CSSProperties = {
+  border: "1px solid rgba(255,107,107,0.18)",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.03)",
+  padding: 12,
+  display: "grid",
+  gap: 10
+};
+
+const alertRailCopy: CSSProperties = {
+  margin: 0,
+  color: "#d5dbe2",
+  fontSize: 12,
+  lineHeight: 1.55
+};
+
+const missionControlSection: CSSProperties = {
+  display: "grid",
+  gap: 16,
+  marginBottom: 18
+};
+
+const missionMetricGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+  gap: 10
+};
+
+const missionMetricCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.03)",
+  padding: "12px 13px",
+  display: "grid",
+  gap: 10
+};
+
+const missionMetricHeader: CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 8
+};
+
+const missionMetricLabel: CSSProperties = {
+  color: "#a8b1bb",
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  fontWeight: 700
+};
+
+const missionMetricValue: CSSProperties = {
+  color: "#fff",
+  fontSize: 22,
+  lineHeight: 1,
+  fontWeight: 900
+};
+
+const metricTrack: CSSProperties = {
+  width: "100%",
+  height: 8,
+  borderRadius: 999,
+  background: "rgba(255,255,255,0.08)",
+  overflow: "hidden"
+};
+
+const metricFill = (value: number): CSSProperties => ({
+  width: `${Math.max(6, Math.min(value, 100))}%`,
+  height: "100%",
+  borderRadius: 999
+});
+
+const riskList: CSSProperties = {
+  display: "grid",
+  gap: 10
+};
+
+const riskItemCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 15,
+  padding: "11px 12px",
+  background: "rgba(255,255,255,0.025)",
+  display: "grid",
+  gap: 9
+};
+
+const riskItemHeader: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start"
+};
+
+const riskItemTitle: CSSProperties = {
+  color: "#fff",
+  fontSize: 14,
+  lineHeight: 1.2
+};
+
+const riskItemCopy: CSSProperties = {
+  margin: "3px 0 0",
+  color: "#aeb7c1",
+  fontSize: 12,
+  lineHeight: 1.45
+};
+
+const incidentFab: CSSProperties = {
+  position: "fixed",
+  right: 18,
+  bottom: 18,
+  zIndex: 35,
+  border: "1px solid rgba(255,123,123,0.28)",
+  borderRadius: 999,
+  padding: "12px 16px",
+  background: "linear-gradient(135deg, rgba(255,123,123,0.94), rgba(255,92,92,0.82))",
+  color: "#fff",
+  fontWeight: 900,
+  letterSpacing: 0.3,
+  boxShadow: "0 18px 34px rgba(255,92,92,0.24)",
+  cursor: "pointer"
+};
+
+const incidentOverlay: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 60,
+  padding: 16,
+  background: "rgba(4,6,9,0.82)",
+  backdropFilter: "blur(10px)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center"
+};
+
+const incidentPanel: CSSProperties = {
+  width: "min(1380px, 100%)",
+  maxHeight: "92vh",
+  overflow: "auto",
+  borderRadius: 24,
+  border: "1px solid rgba(255,255,255,0.1)",
+  background:
+    "linear-gradient(180deg, rgba(27,13,15,0.96) 0%, rgba(14,16,24,0.98) 28%, rgba(8,10,14,0.98) 100%)",
+  boxShadow: "0 36px 80px rgba(0,0,0,0.36)",
+  padding: 18,
+  display: "grid",
+  gap: 16
+};
+
+const incidentHeader: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 16,
+  flexWrap: "wrap"
+};
+
+const incidentEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#ff9b9b",
+  fontSize: 10,
+  letterSpacing: 1.2,
+  textTransform: "uppercase",
+  fontWeight: 800
+};
+
+const incidentTitle: CSSProperties = {
+  margin: "6px 0 6px",
+  color: "#fff3f3",
+  fontSize: 30,
+  lineHeight: 1.08
+};
+
+const incidentCopy: CSSProperties = {
+  margin: 0,
+  color: "#d1d8df",
+  fontSize: 13,
+  lineHeight: 1.55,
+  maxWidth: 680
+};
+
+const incidentMetricGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+  gap: 10
+};
+
+const incidentMetricCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.03)",
+  padding: "13px 14px",
+  display: "grid",
+  gap: 6
+};
+
+const incidentMetricLabel: CSSProperties = {
+  color: "#9ea8b2",
+  fontSize: 10,
+  textTransform: "uppercase",
+  letterSpacing: 0.9
+};
+
+const incidentMetricValue: CSSProperties = {
+  color: "#fff",
+  fontSize: 26,
+  lineHeight: 1.05,
+  fontWeight: 900
+};
+
+const incidentGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(290px,1fr))",
+  gap: 14
+};
+
+const incidentSection: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.025)",
+  padding: 14,
+  display: "grid",
+  gap: 12,
+  alignContent: "start"
+};
+
+const incidentList: CSSProperties = {
+  display: "grid",
+  gap: 10
+};
+
+const incidentCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 14,
+  background: "rgba(0,0,0,0.18)",
+  padding: 12,
+  display: "grid",
+  gap: 10
 };
 
 const mobilePage: CSSProperties = {

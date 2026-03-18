@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { Suspense, lazy, useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,23 +10,24 @@ import SplashScreen from "@/components/SplashScreen";
 import CursorTrail from "@/components/CursorTrail";
 import { clearGuestWarning, subscribeGuestWarningByEntryId, type GuestWarningRecord } from "@/services/warningService";
 
-import Index from "./pages/Index";
-import Login from "./pages/Login";
-import Home from "./pages/Home";
-import About from "./pages/About";
-import Sneak from "./pages/Sneak";
-import RulesAndFAQ from "./pages/RulesAndFAQ";
-import Regulations from "./pages/Regulations";
-import EventDetails from "./pages/EventDetails";
-import DressCode from "./pages/DressCode";
-import Menu from "./pages/Menu";
-import RSVP from "./pages/RSVP";
-import Games from "./pages/Games";
-import Profile from "./pages/Profile";
-import Missing from "./pages/Missing";
-import NotFound from "./pages/NotFound";
-import AdminDashboard from "./pages/AdminDashboard";
 import { ensureAnonymousAuth } from "@/firebase";
+
+const Index = lazy(() => import("./pages/Index"));
+const Login = lazy(() => import("./pages/Login"));
+const Home = lazy(() => import("./pages/Home"));
+const About = lazy(() => import("./pages/About"));
+const Sneak = lazy(() => import("./pages/Sneak"));
+const RulesAndFAQ = lazy(() => import("./pages/RulesAndFAQ"));
+const Regulations = lazy(() => import("./pages/Regulations"));
+const EventDetails = lazy(() => import("./pages/EventDetails"));
+const DressCode = lazy(() => import("./pages/DressCode"));
+const Menu = lazy(() => import("./pages/Menu"));
+const RSVP = lazy(() => import("./pages/RSVP"));
+const Games = lazy(() => import("./pages/Games"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Missing = lazy(() => import("./pages/Missing"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -124,31 +125,48 @@ const AppContent = () => {
         onComplete={handleSplashComplete}
       />
       <GuestWarningOverlay />
+      <Suspense fallback={<RouteLoadingOverlay />}>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />
 
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/login" element={<Login />} />
-
-        <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
-        <Route path="/sneak" element={<ProtectedRoute><Sneak /></ProtectedRoute>} />
-        <Route path="/rules" element={<ProtectedRoute><RulesAndFAQ /></ProtectedRoute>} />
-        <Route path="/faq" element={<ProtectedRoute><RulesAndFAQ /></ProtectedRoute>} />
-        <Route path="/regulations" element={<ProtectedRoute><Regulations /></ProtectedRoute>} />
-        <Route path="/party-details" element={<ProtectedRoute><EventDetails /></ProtectedRoute>} />
-        <Route path="/event-details" element={<ProtectedRoute><EventDetails /></ProtectedRoute>} />
-        <Route path="/dress-code" element={<ProtectedRoute><DressCode /></ProtectedRoute>} />
-        <Route path="/menu" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
-        <Route path="/rsvp" element={<ProtectedRoute><RSVP /></ProtectedRoute>} />
-        <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/missing" element={<Missing />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
+          <Route path="/sneak" element={<ProtectedRoute><Sneak /></ProtectedRoute>} />
+          <Route path="/rules" element={<ProtectedRoute><RulesAndFAQ /></ProtectedRoute>} />
+          <Route path="/faq" element={<ProtectedRoute><RulesAndFAQ /></ProtectedRoute>} />
+          <Route path="/regulations" element={<ProtectedRoute><Regulations /></ProtectedRoute>} />
+          <Route path="/party-details" element={<ProtectedRoute><EventDetails /></ProtectedRoute>} />
+          <Route path="/event-details" element={<ProtectedRoute><EventDetails /></ProtectedRoute>} />
+          <Route path="/dress-code" element={<ProtectedRoute><DressCode /></ProtectedRoute>} />
+          <Route path="/menu" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
+          <Route path="/rsvp" element={<ProtectedRoute><RSVP /></ProtectedRoute>} />
+          <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/missing" element={<Missing />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </>
   );
 };
+
+const RouteLoadingOverlay = () => (
+  <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div className="w-[min(92vw,420px)] rounded-3xl border border-amber-200/20 bg-neutral-950/90 p-6 text-center shadow-2xl">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-amber-300/80">
+        Loading View
+      </p>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-amber-200 via-amber-400 to-sky-300" />
+      </div>
+      <p className="mt-4 text-sm text-neutral-200">
+        Preparing the next experience.
+      </p>
+    </div>
+  </div>
+);
 
 const App = () => {
   useEffect(() => {

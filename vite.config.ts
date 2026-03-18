@@ -97,4 +97,18 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          if (id.includes("firebase")) return "vendor-firebase";
+          if (id.includes("recharts")) return "vendor-charts";
+          if (id.includes("react-router-dom")) return "vendor-router";
+          if (id.includes("@tanstack")) return "vendor-query";
+        },
+      },
+    },
+  },
 }));
