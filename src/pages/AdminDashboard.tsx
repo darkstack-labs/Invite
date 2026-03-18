@@ -228,13 +228,6 @@ export default function AdminDashboard(): JSX.Element {
   const isSuperAdmin = currentEntryId === SUPER_ADMIN_ENTRY_ID;
   const isAdmin = isSuperAdmin || !!adminRoleMap[currentEntryId];
   const authBadge = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Viewer";
-  const overviewGridStyle = isMobile ? mobileOverviewGrid : overviewGrid;
-  const panelStyle = isMobile ? mobilePanel : panel;
-  const activityTableStyle = isMobile ? mobileActivityTable : activityTable;
-  const controlsStyle = isMobile ? mobileControls : controls;
-  const chipWrapStyle = isMobile ? mobileChipWrap : chipWrap;
-  const searchInputStyle = isMobile ? mobileSearchInput : searchInput;
-
   const mobileOverviewGrid = { ...overviewGrid, gridTemplateColumns: "1fr", gap: 12 };
   const mobilePanel = { ...panel, padding: 12 };
   const mobileActivityTable = { ...activityTable, minWidth: 640 };
@@ -243,6 +236,13 @@ export default function AdminDashboard(): JSX.Element {
   const mobileSearchInput = { ...searchInput, maxWidth: "100%", padding: "9px 10px", fontSize: 13 };
   const mobileFilterGrid = { ...gamesFilterGrid, gridTemplateColumns: "1fr", gap: 10 };
   const mobileStack = { display: "grid", gap: 12 };
+
+  const overviewGridStyle = isMobile ? mobileOverviewGrid : overviewGrid;
+  const panelStyle = isMobile ? mobilePanel : panel;
+  const activityTableStyle = isMobile ? mobileActivityTable : activityTable;
+  const controlsStyle = isMobile ? mobileControls : controls;
+  const chipWrapStyle = isMobile ? mobileChipWrap : chipWrap;
+  const searchInputStyle = isMobile ? mobileSearchInput : searchInput;
   const filterGridStyle = isMobile ? mobileFilterGrid : gamesFilterGrid;
 
   const getErrorMessage = (error: unknown, fallback: string) => {
