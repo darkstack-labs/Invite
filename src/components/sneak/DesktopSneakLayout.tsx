@@ -12,8 +12,8 @@ const previewImages = [
 ];
 
 const releaseHighlights = [
-  { icon: Image, title: '10 Editorial Frames', note: 'Selected for the first reveal.' },
-  { icon: Play, title: '5 Signature Films', note: 'Cut for a guest-first release.' },
+  { icon: Image, title: 'Editorial Frames', note: 'Selected for the first reveal.' },
+  { icon: Play, title: 'Signature Films', note: 'Cut for a guest-first release.' },
 ];
 
 const DesktopSneakLayout = () => {
@@ -62,16 +62,6 @@ const DesktopSneakLayout = () => {
               <p className="text-gold/85 text-lg leading-relaxed">
                 Being prepared for a refined phased reveal.
               </p>
-              <div className="grid grid-cols-2 gap-3 mt-5">
-                <div className="rounded-xl border border-gold/20 bg-black/25 p-4">
-                  <p className="text-3xl font-display text-gold">10</p>
-                  <p className="text-gold/65 text-sm uppercase tracking-[0.2em] mt-1">Images Reserved</p>
-                </div>
-                <div className="rounded-xl border border-gold/20 bg-black/25 p-4">
-                  <p className="text-3xl font-display text-gold">05</p>
-                  <p className="text-gold/65 text-sm uppercase tracking-[0.2em] mt-1">Films Reserved</p>
-                </div>
-              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -137,11 +127,6 @@ const DesktopSneakLayout = () => {
                 </motion.div>
                 <p className="text-gold font-display text-2xl mb-2">Private Preview</p>
                 <p className="text-gold/70 text-sm">Reserved for a refined first release</p>
-                <div className="mt-4 flex items-center gap-3 text-xs uppercase tracking-[0.25em] text-gold/55">
-                  <span>10 Images</span>
-                  <span className="h-1 w-1 rounded-full bg-gold/40" />
-                  <span>5 Films</span>
-                </div>
               </div>
 
               <button

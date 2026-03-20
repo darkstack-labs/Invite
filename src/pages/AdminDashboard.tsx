@@ -172,6 +172,16 @@ export default function AdminDashboard(): JSX.Element {
   /* ---------------- STATE ---------------- */
 
   const [activeSection, setActiveSection] = useState<Section>("overview");
+  const [authenticated, setAuthenticated] = useState<boolean>(
+    localStorage.getItem("admin-auth") === "true"
+  );
+  const [adminSessionEntryId, setAdminSessionEntryId] = useState<string>(
+    localStorage.getItem("admin-auth") === "true"
+      ? localStorage.getItem("admin-entry-id")?.trim() ?? ""
+      : ""
+  );
+  const [loginEntryId, setLoginEntryId] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
 
   /* ---------------- DATA HOOKS ---------------- */
 
@@ -192,17 +202,6 @@ export default function AdminDashboard(): JSX.Element {
   /* ---------------- STATE ---------------- */
 
   const [search, setSearch] = useState<string>("");
-
-  const [authenticated, setAuthenticated] = useState<boolean>(
-    localStorage.getItem("admin-auth") === "true"
-  );
-  const [adminSessionEntryId, setAdminSessionEntryId] = useState<string>(
-    localStorage.getItem("admin-auth") === "true"
-      ? localStorage.getItem("admin-entry-id")?.trim() ?? ""
-      : ""
-  );
-  const [loginEntryId, setLoginEntryId] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
   const [blockedDeviceIds, setBlockedDeviceIds] = useState<Set<string>>(new Set());
   const [blockedEntryIds, setBlockedEntryIds] = useState<Set<string>>(new Set());
   const [guestWarnings, setGuestWarnings] = useState<Map<string, GuestWarningRecord>>(new Map());

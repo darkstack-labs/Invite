@@ -125,7 +125,7 @@ const AppContent = () => {
         onComplete={handleSplashComplete}
       />
       <GuestWarningOverlay />
-      <Suspense fallback={<RouteLoadingOverlay />}>
+      <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
@@ -151,22 +151,6 @@ const AppContent = () => {
     </>
   );
 };
-
-const RouteLoadingOverlay = () => (
-  <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-    <div className="w-[min(92vw,420px)] rounded-3xl border border-amber-200/20 bg-neutral-950/90 p-6 text-center shadow-2xl">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-amber-300/80">
-        Loading View
-      </p>
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-amber-200 via-amber-400 to-sky-300" />
-      </div>
-      <p className="mt-4 text-sm text-neutral-200">
-        Preparing the next experience.
-      </p>
-    </div>
-  </div>
-);
 
 const App = () => {
   useEffect(() => {

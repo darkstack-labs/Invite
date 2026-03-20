@@ -11,8 +11,8 @@ const previewImages = [
 ];
 
 const releaseHighlights = [
-  { icon: Image, title: '10 Images', note: 'Reserved for the first look.' },
-  { icon: Play, title: '5 Videos', note: 'Queued for a phased reveal.' },
+  { icon: Image, title: 'Editorial Images', note: 'Reserved for the first look.' },
+  { icon: Play, title: 'Signature Videos', note: 'Queued for a phased reveal.' },
 ];
 
 const MobileSneakLayout = () => {
@@ -52,16 +52,6 @@ const MobileSneakLayout = () => {
         <p className="text-gold/80 text-sm leading-relaxed">
           The first look is being prepared for a polished guest-first release.
         </p>
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          <div className="rounded-lg border border-gold/20 bg-black/20 p-3">
-            <p className="text-2xl font-display text-gold">10</p>
-            <p className="text-gold/55 text-[10px] uppercase tracking-[0.2em]">Reserved Images</p>
-          </div>
-          <div className="rounded-lg border border-gold/20 bg-black/20 p-3">
-            <p className="text-2xl font-display text-gold">05</p>
-            <p className="text-gold/55 text-[10px] uppercase tracking-[0.2em]">Reserved Films</p>
-          </div>
-        </div>
       </motion.div>
 
       {/* Blurred preview gallery */}
@@ -96,7 +86,6 @@ const MobileSneakLayout = () => {
             </motion.div>
             <p className="text-gold font-display text-lg">Private Preview</p>
             <p className="text-gold/65 text-sm mt-1">Reserved for the guest-first release</p>
-            <p className="text-gold/50 text-[10px] uppercase tracking-[0.22em] mt-3">10 Images • 5 Videos</p>
           </div>
 
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">

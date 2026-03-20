@@ -11,8 +11,8 @@ const previewImages = [
 ];
 
 const releaseHighlights = [
-  { icon: Image, title: '10 Image Collection', description: 'Edited frames for the first reveal.' },
-  { icon: Play, title: '5 Video Capsules', description: 'Prepared for a phased cinematic drop.' },
+  { icon: Image, title: 'Image Collection', description: 'Edited frames for the first reveal.' },
+  { icon: Play, title: 'Video Capsules', description: 'Prepared for a phased cinematic drop.' },
 ];
 
 const TabletSneakLayout = () => {
@@ -55,16 +55,6 @@ const TabletSneakLayout = () => {
           <p className="text-gold/75 text-sm leading-relaxed">
             Being staged in phases for a polished first release.
           </p>
-          <div className="grid grid-cols-2 gap-3 mt-5">
-            <div className="rounded-xl border border-gold/20 bg-black/20 p-4">
-              <p className="text-3xl font-display text-gold">10</p>
-              <p className="text-gold/60 text-xs uppercase tracking-[0.18em] mt-1">Reserved Images</p>
-            </div>
-            <div className="rounded-xl border border-gold/20 bg-black/20 p-4">
-              <p className="text-3xl font-display text-gold">05</p>
-              <p className="text-gold/60 text-xs uppercase tracking-[0.18em] mt-1">Reserved Films</p>
-            </div>
-          </div>
         </motion.div>
 
         {/* Blurred preview */}
@@ -94,7 +84,6 @@ const TabletSneakLayout = () => {
               <Lock className="w-14 h-14 text-gold mb-3" />
             </motion.div>
             <p className="text-gold font-display text-xl">Private Preview</p>
-            <p className="text-gold/60 text-xs uppercase tracking-[0.22em] mt-2">10 Images • 5 Videos</p>
           </div>
 
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
