@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Image, Play, Star } from 'lucide-react';
 import PremiumHeading from '@/components/PremiumHeading';
-import CountdownTimer from '@/components/CountdownTimer';
 
 const previewImages = [
   'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=400&h=300&fit=crop',
   'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=300&fit=crop',
   'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&h=300&fit=crop',
   'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=400&h=300&fit=crop',
+];
+
+const releaseHighlights = [
+  { icon: Image, title: '10 Images', note: 'Reserved for the first look.' },
+  { icon: Play, title: '5 Videos', note: 'Queued for a phased reveal.' },
 ];
 
 const MobileSneakLayout = () => {
@@ -34,7 +38,7 @@ const MobileSneakLayout = () => {
         showCrown={false}
       />
 
-      {/* Countdown to reveal - March 20 */}
+      {/* Premium release card */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -43,9 +47,21 @@ const MobileSneakLayout = () => {
       >
         <div className="flex items-center justify-center gap-2 mb-2">
           <Star className="w-4 h-4 text-gold" />
-          <span className="text-gold text-sm font-display">Content Reveals On March 20</span>
+          <span className="text-gold text-sm font-display">Curated Reveal In Motion</span>
         </div>
-        <SneakCountdown />
+        <p className="text-gold/80 text-sm leading-relaxed">
+          The first look is being prepared for a polished guest-first release.
+        </p>
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="rounded-lg border border-gold/20 bg-black/20 p-3">
+            <p className="text-2xl font-display text-gold">10</p>
+            <p className="text-gold/55 text-[10px] uppercase tracking-[0.2em]">Reserved Images</p>
+          </div>
+          <div className="rounded-lg border border-gold/20 bg-black/20 p-3">
+            <p className="text-2xl font-display text-gold">05</p>
+            <p className="text-gold/55 text-[10px] uppercase tracking-[0.2em]">Reserved Films</p>
+          </div>
+        </div>
       </motion.div>
 
       {/* Blurred preview gallery */}
@@ -78,8 +94,9 @@ const MobileSneakLayout = () => {
             >
               <Lock className="w-12 h-12 text-gold mb-3" />
             </motion.div>
-            <p className="text-gold font-display text-lg">Locked Content</p>
-            <p className="text-gold/60 text-sm mt-1">Behind-the-scenes coming soon</p>
+            <p className="text-gold font-display text-lg">Private Preview</p>
+            <p className="text-gold/65 text-sm mt-1">Reserved for the guest-first release</p>
+            <p className="text-gold/50 text-[10px] uppercase tracking-[0.22em] mt-3">10 Images • 5 Videos</p>
           </div>
 
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
@@ -95,12 +112,9 @@ const MobileSneakLayout = () => {
         </div>
       </motion.div>
 
-      {/* Only Photos and Videos */}
+      {/* Premium locked set */}
       <div className="grid grid-cols-2 gap-3 w-full">
-        {[
-          { icon: Image, title: 'Photos' },
-          { icon: Play, title: 'Videos' },
-        ].map((item, idx) => (
+        {releaseHighlights.map((item, idx) => (
           <motion.div
             key={item.title}
             initial={{ opacity: 0, y: 20 }}
@@ -109,6 +123,7 @@ const MobileSneakLayout = () => {
             whileHover={{ scale: 1.02 }}
             className="card-shimmer rounded-xl p-4 relative overflow-hidden"
           >
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/70 to-transparent" />
             <motion.div
               animate={{ y: [0, -3, 0] }}
               transition={{ duration: 2, repeat: Infinity, delay: idx * 0.3 }}
@@ -116,6 +131,7 @@ const MobileSneakLayout = () => {
               <item.icon className="w-8 h-8 text-gold mx-auto mb-2" />
             </motion.div>
             <p className="text-gold font-display">{item.title}</p>
+            <p className="text-gold/55 text-[11px] mt-1">{item.note}</p>
             
             <div className="absolute top-2 right-2">
               <Lock className="w-3 h-3 text-gold/50" />
@@ -145,71 +161,15 @@ const MobileSneakLayout = () => {
         >
           <div className="flex items-center justify-center gap-2 mb-1">
             <Star className="w-3 h-3 text-gold/60" />
-            <span className="text-gold/60 text-xs">Coming Soon</span>
+            <span className="text-gold/60 text-xs">Guest-First Access</span>
             <Star className="w-3 h-3 text-gold/60" />
           </div>
           <p className="text-gold/80 italic text-sm">
-            "The best surprises are worth waiting for..."
+            "The strongest reveals arrive with timing."
           </p>
         </motion.div>
       </motion.div>
     </motion.div>
-  );
-};
-
-// Countdown component for March 20 reveal
-const SneakCountdown = () => {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-
-  useEffect(() => {
-    const update = () => {
-      const target = new Date('2026-03-20T00:00:00+05:30');
-      const now = new Date();
-      const diff = target.getTime() - now.getTime();
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        return;
-      }
-      const s = Math.floor(diff / 1000);
-      setTimeLeft({
-        days: Math.floor(s / 86400),
-        hours: Math.floor((s % 86400) / 3600),
-        minutes: Math.floor((s % 3600) / 60),
-        seconds: s % 60,
-      });
-    };
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div className="flex justify-center gap-3 mt-2">
-      {[
-        { label: 'Days', value: timeLeft.days },
-      ].map((block) => (
-        <div key={block.label} className="flex flex-col items-center">
-          <motion.div
-            className="w-12 h-14 rounded-lg flex items-center justify-center text-xl font-bold text-gold"
-            style={{
-              background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(0,0,0,0.6))',
-              border: '1px solid rgba(212, 175, 55, 0.3)',
-            }}
-            animate={{ 
-              boxShadow: [
-                '0 0 5px rgba(212, 175, 55, 0.2)',
-                '0 0 15px rgba(212, 175, 55, 0.4)',
-                '0 0 5px rgba(212, 175, 55, 0.2)'
-              ]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            {String(block.value).padStart(2, '0')}
-          </motion.div>
-          <span className="text-gold/60 text-[10px] mt-1 uppercase tracking-wider">{block.label}</span>
-        </div>
-      ))}
-    </div>
   );
 };
 

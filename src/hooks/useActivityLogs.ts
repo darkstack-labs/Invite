@@ -2,10 +2,15 @@ import { useEffect, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "@/firebase";
 
-export default function useActivityLogs() {
+export default function useActivityLogs(enabled = true) {
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!enabled) {
+      setActivityLogs([]);
+      return;
+    }
+
     const q = query(
       collection(db, "activityLogs"),
       orderBy("timestamp", "desc")
@@ -26,7 +31,7 @@ export default function useActivityLogs() {
     );
 
     return () => unsub();
-  }, []);
+  }, [enabled]);
 
   return activityLogs;
 }

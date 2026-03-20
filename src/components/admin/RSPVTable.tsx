@@ -11,7 +11,13 @@ type RSVPGuest = {
   entryId?: string;
 };
 
-export default function RSVPTable({ guests }: { guests: RSVPGuest[] }) {
+export default function RSVPTable({
+  guests,
+  canManage = false
+}: {
+  guests: RSVPGuest[];
+  canManage?: boolean;
+}) {
   const isMobile = useIsMobile();
 
   const summary = useMemo(
@@ -84,15 +90,21 @@ export default function RSVPTable({ guests }: { guests: RSVPGuest[] }) {
               </div>
 
               <div style={actionStack}>
-                <button style={primaryBtn} onClick={() => toggleAttendance(guest.id, guest.attendance ?? "no")}>
-                  Toggle Attendance
-                </button>
-                <button style={secondaryBtn} onClick={() => toggleMeal(guest.id, guest.mealPreference ?? "veg")}>
-                  Toggle Meal
-                </button>
-                <button style={dangerBtn} onClick={() => deleteGuest(guest.id)}>
-                  Delete RSVP
-                </button>
+                {canManage ? (
+                  <>
+                    <button style={primaryBtn} onClick={() => toggleAttendance(guest.id, guest.attendance ?? "no")}>
+                      Toggle Attendance
+                    </button>
+                    <button style={secondaryBtn} onClick={() => toggleMeal(guest.id, guest.mealPreference ?? "veg")}>
+                      Toggle Meal
+                    </button>
+                    <button style={dangerBtn} onClick={() => deleteGuest(guest.id)}>
+                      Delete RSVP
+                    </button>
+                  </>
+                ) : (
+                  <div style={viewerNote}>Viewer mode: editing disabled for this session.</div>
+                )}
               </div>
             </article>
           ))}
@@ -123,17 +135,21 @@ export default function RSVPTable({ guests }: { guests: RSVPGuest[] }) {
                     </span>
                   </td>
                   <td style={td}>
-                    <div style={actions}>
-                      <button style={primaryBtn} onClick={() => toggleAttendance(guest.id, guest.attendance ?? "no")}>
-                        Toggle Attendance
-                      </button>
-                      <button style={secondaryBtn} onClick={() => toggleMeal(guest.id, guest.mealPreference ?? "veg")}>
-                        Toggle Meal
-                      </button>
-                      <button style={dangerBtn} onClick={() => deleteGuest(guest.id)}>
-                        Delete
-                      </button>
-                    </div>
+                    {canManage ? (
+                      <div style={actions}>
+                        <button style={primaryBtn} onClick={() => toggleAttendance(guest.id, guest.attendance ?? "no")}>
+                          Toggle Attendance
+                        </button>
+                        <button style={secondaryBtn} onClick={() => toggleMeal(guest.id, guest.mealPreference ?? "veg")}>
+                          Toggle Meal
+                        </button>
+                        <button style={dangerBtn} onClick={() => deleteGuest(guest.id)}>
+                          Delete
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={viewerNote}>Viewer mode</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -355,6 +371,12 @@ const emptyState: CSSProperties = {
   textAlign: "center",
   color: "#9fa8b2",
   background: "rgba(255,255,255,0.02)"
+};
+
+const viewerNote: CSSProperties = {
+  color: "#9aa3ad",
+  fontSize: 12,
+  lineHeight: 1.4
 };
 
 const buttonBase: CSSProperties = {

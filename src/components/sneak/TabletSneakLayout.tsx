@@ -10,6 +10,11 @@ const previewImages = [
   'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&h=400&fit=crop',
 ];
 
+const releaseHighlights = [
+  { icon: Image, title: '10 Image Collection', description: 'Edited frames for the first reveal.' },
+  { icon: Play, title: '5 Video Capsules', description: 'Prepared for a phased cinematic drop.' },
+];
+
 const TabletSneakLayout = () => {
   const [currentPreview, setCurrentPreview] = useState(0);
 
@@ -36,7 +41,7 @@ const TabletSneakLayout = () => {
       </div>
 
       <div className="w-full max-w-3xl grid grid-cols-2 gap-6">
-        {/* Countdown card */}
+        {/* Release status card */}
         <motion.div
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
@@ -45,10 +50,21 @@ const TabletSneakLayout = () => {
         >
           <div className="flex items-center justify-center gap-2 mb-4">
             <Star className="w-5 h-5 text-gold" />
-            <span className="text-gold font-display text-lg">Reveals March 20</span>
+            <span className="text-gold font-display text-lg">First Look Being Curated</span>
           </div>
-          <SneakCountdown />
-          <p className="text-gold/60 text-sm mt-4">Exclusive content coming soon</p>
+          <p className="text-gold/75 text-sm leading-relaxed">
+            Being staged in phases for a polished first release.
+          </p>
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <div className="rounded-xl border border-gold/20 bg-black/20 p-4">
+              <p className="text-3xl font-display text-gold">10</p>
+              <p className="text-gold/60 text-xs uppercase tracking-[0.18em] mt-1">Reserved Images</p>
+            </div>
+            <div className="rounded-xl border border-gold/20 bg-black/20 p-4">
+              <p className="text-3xl font-display text-gold">05</p>
+              <p className="text-gold/60 text-xs uppercase tracking-[0.18em] mt-1">Reserved Films</p>
+            </div>
+          </div>
         </motion.div>
 
         {/* Blurred preview */}
@@ -77,7 +93,8 @@ const TabletSneakLayout = () => {
             >
               <Lock className="w-14 h-14 text-gold mb-3" />
             </motion.div>
-            <p className="text-gold font-display text-xl">Locked</p>
+            <p className="text-gold font-display text-xl">Private Preview</p>
+            <p className="text-gold/60 text-xs uppercase tracking-[0.22em] mt-2">10 Images • 5 Videos</p>
           </div>
 
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
@@ -91,12 +108,9 @@ const TabletSneakLayout = () => {
         </motion.div>
       </div>
 
-      {/* Only Photos and Videos */}
+      {/* Premium release set */}
       <div className="w-full max-w-3xl grid grid-cols-2 gap-4 mt-6">
-        {[
-          { icon: Image, title: 'Photos', description: 'Behind-the-scenes preparation' },
-          { icon: Play, title: 'Videos', description: 'Exclusive party previews' },
-        ].map((item, idx) => (
+        {releaseHighlights.map((item, idx) => (
           <motion.div
             key={item.title}
             initial={{ opacity: 0, y: 20 }}
@@ -142,70 +156,15 @@ const TabletSneakLayout = () => {
         >
           <div className="flex items-center justify-center gap-2 mb-2">
             <Star className="w-4 h-4 text-gold/60" />
-            <span className="text-gold/60 text-sm">Preview Teaser</span>
+            <span className="text-gold/60 text-sm">Reserved Access</span>
             <Star className="w-4 h-4 text-gold/60" />
           </div>
           <p className="text-gold italic">
-            "The best surprises are worth waiting for..."
+            "The strongest reveals arrive with timing."
           </p>
         </motion.div>
       </motion.div>
     </motion.div>
-  );
-};
-
-const SneakCountdown = () => {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-
-  useEffect(() => {
-    const update = () => {
-      const target = new Date('2026-03-20T00:00:00+05:30');
-      const now = new Date();
-      const diff = target.getTime() - now.getTime();
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        return;
-      }
-      const s = Math.floor(diff / 1000);
-      setTimeLeft({
-        days: Math.floor(s / 86400),
-        hours: Math.floor((s % 86400) / 3600),
-        minutes: Math.floor((s % 3600) / 60),
-        seconds: s % 60,
-      });
-    };
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div className="flex justify-center gap-3 mt-2">
-      {[
-        { label: 'Days', value: timeLeft.days },
-      ].map((block) => (
-        <div key={block.label} className="flex flex-col items-center">
-          <motion.div
-            className="w-14 h-16 rounded-lg flex items-center justify-center text-2xl font-bold text-gold"
-            style={{
-              background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(0,0,0,0.6))',
-              border: '1px solid rgba(212, 175, 55, 0.3)',
-            }}
-            animate={{ 
-              boxShadow: [
-                '0 0 5px rgba(212, 175, 55, 0.2)',
-                '0 0 15px rgba(212, 175, 55, 0.4)',
-                '0 0 5px rgba(212, 175, 55, 0.2)'
-              ]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            {String(block.value).padStart(2, '0')}
-          </motion.div>
-          <span className="text-gold/60 text-xs mt-1 uppercase tracking-wider">{block.label}</span>
-        </div>
-      ))}
-    </div>
   );
 };
 

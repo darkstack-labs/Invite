@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 
-export default function useRSVPs() {
+export default function useRSVPs(enabled = true) {
 
   const [rsvps, setRsvps] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!enabled) {
+      setRsvps([]);
+      return;
+    }
 
     const q = query(
       collection(db, "rsvps"),
@@ -31,7 +35,7 @@ export default function useRSVPs() {
 
     return () => unsub();
 
-  }, []);
+  }, [enabled]);
 
   return rsvps;
 }

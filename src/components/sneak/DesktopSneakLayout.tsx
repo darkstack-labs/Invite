@@ -11,6 +11,11 @@ const previewImages = [
   'https://images.unsplash.com/photo-1504196606672-aef5c9cefc92?w=800&h=500&fit=crop',
 ];
 
+const releaseHighlights = [
+  { icon: Image, title: '10 Editorial Frames', note: 'Selected for the first reveal.' },
+  { icon: Play, title: '5 Signature Films', note: 'Cut for a guest-first release.' },
+];
+
 const DesktopSneakLayout = () => {
   const [currentPreview, setCurrentPreview] = useState(0);
 
@@ -48,36 +53,46 @@ const DesktopSneakLayout = () => {
             transition={{ delay: 0.2 }}
             className="space-y-6"
           >
-            {/* Countdown card */}
+            {/* Release status card */}
             <div className="card-shimmer rounded-2xl p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Star className="w-6 h-6 text-gold" />
-                <span className="text-gold font-display text-xl">Reveals March 20</span>
+                <span className="text-gold font-display text-xl">Curated First Look</span>
               </div>
-              <SneakCountdown />
+              <p className="text-gold/85 text-lg leading-relaxed">
+                Being prepared for a refined phased reveal.
+              </p>
+              <div className="grid grid-cols-2 gap-3 mt-5">
+                <div className="rounded-xl border border-gold/20 bg-black/25 p-4">
+                  <p className="text-3xl font-display text-gold">10</p>
+                  <p className="text-gold/65 text-sm uppercase tracking-[0.2em] mt-1">Images Reserved</p>
+                </div>
+                <div className="rounded-xl border border-gold/20 bg-black/25 p-4">
+                  <p className="text-3xl font-display text-gold">05</p>
+                  <p className="text-gold/65 text-sm uppercase tracking-[0.2em] mt-1">Films Reserved</p>
+                </div>
+              </div>
             </div>
 
-            {/* Only Photos and Videos */}
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { icon: Image, title: 'Photos' },
-                { icon: Play, title: 'Videos' },
-              ].map((item, idx) => (
+            <div className="grid grid-cols-1 gap-4">
+              {releaseHighlights.map((item, idx) => (
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 + idx * 0.1 }}
                   whileHover={{ scale: 1.05 }}
-                  className="card-shimmer rounded-xl p-4 text-center relative"
+                  className="card-shimmer rounded-xl p-5 relative overflow-hidden"
                 >
+                  <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-gold/80 via-gold/30 to-transparent" />
                   <motion.div
                     animate={{ y: [0, -4, 0] }}
                     transition={{ duration: 2, repeat: Infinity, delay: idx * 0.3 }}
                   >
-                    <item.icon className="w-8 h-8 text-gold mx-auto mb-2" />
+                    <item.icon className="w-8 h-8 text-gold mb-3" />
                   </motion.div>
-                  <p className="text-gold text-sm font-display">{item.title}</p>
+                  <p className="text-gold text-lg font-display">{item.title}</p>
+                  <p className="text-gold/60 text-sm mt-2">{item.note}</p>
                   <Lock className="w-3 h-3 text-gold/40 absolute top-2 right-2" />
                 </motion.div>
               ))}
@@ -120,8 +135,13 @@ const DesktopSneakLayout = () => {
                     <Sparkles className="w-6 h-6 text-champagne" />
                   </motion.div>
                 </motion.div>
-                <p className="text-gold font-display text-2xl mb-2">Locked Content</p>
-                <p className="text-gold/60 text-sm">Exclusive behind-the-scenes</p>
+                <p className="text-gold font-display text-2xl mb-2">Private Preview</p>
+                <p className="text-gold/70 text-sm">Reserved for a refined first release</p>
+                <div className="mt-4 flex items-center gap-3 text-xs uppercase tracking-[0.25em] text-gold/55">
+                  <span>10 Images</span>
+                  <span className="h-1 w-1 rounded-full bg-gold/40" />
+                  <span>5 Films</span>
+                </div>
               </div>
 
               <button
@@ -170,19 +190,19 @@ const DesktopSneakLayout = () => {
               <ul className="space-y-3 text-left">
                 <li className="flex items-center gap-3 text-gold/80">
                   <Star className="w-4 h-4 text-copper flex-shrink-0" />
-                  <span>Exclusive preparation photos</span>
+                  <span>Editorial stills from standout moments</span>
                 </li>
                 <li className="flex items-center gap-3 text-gold/80">
                   <Star className="w-4 h-4 text-copper flex-shrink-0" />
-                  <span>Behind-the-scenes video clips</span>
+                  <span>Cinematic short cuts for the first drop</span>
                 </li>
                 <li className="flex items-center gap-3 text-gold/80">
                   <Star className="w-4 h-4 text-copper flex-shrink-0" />
-                  <span>Virtual venue walkthrough</span>
+                  <span>Reveals unlocked in a controlled sequence</span>
                 </li>
                 <li className="flex items-center gap-3 text-gold/80">
                   <Star className="w-4 h-4 text-copper flex-shrink-0" />
-                  <span>Team highlights reel</span>
+                  <span>A first look designed to build anticipation</span>
                 </li>
               </ul>
             </motion.div>
@@ -201,68 +221,13 @@ const DesktopSneakLayout = () => {
               className="card-shimmer px-6 py-4"
             >
               <p className="text-gold italic text-lg">
-                "The best surprises are worth waiting for..."
+                "The strongest reveals arrive with timing."
               </p>
             </motion.div>
           </motion.div>
         </div>
       </div>
     </motion.div>
-  );
-};
-
-const SneakCountdown = () => {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-
-  useEffect(() => {
-    const update = () => {
-      const target = new Date('2026-03-20T00:00:00+05:30');
-      const now = new Date();
-      const diff = target.getTime() - now.getTime();
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        return;
-      }
-      const s = Math.floor(diff / 1000);
-      setTimeLeft({
-        days: Math.floor(s / 86400),
-        hours: Math.floor((s % 86400) / 3600),
-        minutes: Math.floor((s % 3600) / 60),
-        seconds: s % 60,
-      });
-    };
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div className="flex justify-center gap-3 mt-2">
-      {[
-        { label: 'Days', value: timeLeft.days },
-      ].map((block) => (
-        <div key={block.label} className="flex flex-col items-center">
-          <motion.div
-            className="w-16 h-18 rounded-lg flex items-center justify-center text-2xl font-bold text-gold py-3"
-            style={{
-              background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(0,0,0,0.6))',
-              border: '1px solid rgba(212, 175, 55, 0.3)',
-            }}
-            animate={{ 
-              boxShadow: [
-                '0 0 5px rgba(212, 175, 55, 0.2)',
-                '0 0 15px rgba(212, 175, 55, 0.4)',
-                '0 0 5px rgba(212, 175, 55, 0.2)'
-              ]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            {String(block.value).padStart(2, '0')}
-          </motion.div>
-          <span className="text-gold/60 text-xs mt-1 uppercase tracking-wider">{block.label}</span>
-        </div>
-      ))}
-    </div>
   );
 };
 

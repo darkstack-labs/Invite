@@ -10,10 +10,12 @@ type SongRow = {
 
 export default function SongsTable({
   songs,
-  onDelete
+  onDelete,
+  canManage = false
 }: {
   songs: SongRow[];
   onDelete?: (id: string) => void;
+  canManage?: boolean;
 }) {
   const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
@@ -80,9 +82,13 @@ export default function SongsTable({
                 </div>
               </div>
 
-              <button style={dangerBtn} onClick={() => onDelete?.(song.id)}>
-                Delete Request
-              </button>
+              {canManage ? (
+                <button style={dangerBtn} onClick={() => onDelete?.(song.id)}>
+                  Delete Request
+                </button>
+              ) : (
+                <div style={viewerNote}>Viewer mode: request deletion is disabled.</div>
+              )}
             </article>
           ))}
         </div>
@@ -104,9 +110,13 @@ export default function SongsTable({
                   <td style={td}>{song.songName ?? "-"}</td>
                   <td style={td}>{song.artist ?? "-"}</td>
                   <td style={td}>
-                    <button style={dangerBtn} onClick={() => onDelete?.(song.id)}>
-                      Delete
-                    </button>
+                    {canManage ? (
+                      <button style={dangerBtn} onClick={() => onDelete?.(song.id)}>
+                        Delete
+                      </button>
+                    ) : (
+                      <span style={viewerNote}>Viewer mode</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -359,6 +369,12 @@ const dangerBtn: CSSProperties = {
   color: "#ff8c8d",
   fontWeight: 800,
   fontSize: 12
+};
+
+const viewerNote: CSSProperties = {
+  color: "#9aa3ad",
+  fontSize: 12,
+  lineHeight: 1.4
 };
 
 const toAlpha = (hex: string, alpha: number) => {

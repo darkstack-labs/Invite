@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 
-export default function useSuggestions() {
+export default function useSuggestions(enabled = true) {
 
   const [suggestions, setSuggestions] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!enabled) {
+      setSuggestions([]);
+      return;
+    }
 
     const q = query(
       collection(db, "suggestions"),
@@ -31,7 +35,7 @@ export default function useSuggestions() {
 
     return () => unsub();
 
-  }, []);
+  }, [enabled]);
 
   return suggestions;
 }

@@ -9,10 +9,12 @@ type SuggestionRow = {
 
 export default function SuggestionsTable({
   suggestions,
-  onDelete
+  onDelete,
+  canManage = false
 }: {
   suggestions: SuggestionRow[];
   onDelete?: (id: string) => void;
+  canManage?: boolean;
 }) {
   const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
@@ -65,9 +67,13 @@ export default function SuggestionsTable({
                   <span style={authorLabel}>From</span>
                   <h3 style={cardTitle}>{item.name ?? "Anonymous guest"}</h3>
                 </div>
-                <button style={dangerBtn} onClick={() => onDelete?.(item.id)}>
-                  Delete
-                </button>
+                {canManage ? (
+                  <button style={dangerBtn} onClick={() => onDelete?.(item.id)}>
+                    Delete
+                  </button>
+                ) : (
+                  <span style={viewerNote}>Viewer mode</span>
+                )}
               </div>
               <div style={suggestionBox}>{item.suggestion ?? "-"}</div>
             </article>
@@ -89,9 +95,13 @@ export default function SuggestionsTable({
                   <td style={tdStrong}>{item.name ?? "Anonymous guest"}</td>
                   <td style={tdWide}>{item.suggestion ?? "-"}</td>
                   <td style={td}>
-                    <button style={dangerBtn} onClick={() => onDelete?.(item.id)}>
-                      Delete
-                    </button>
+                    {canManage ? (
+                      <button style={dangerBtn} onClick={() => onDelete?.(item.id)}>
+                        Delete
+                      </button>
+                    ) : (
+                      <span style={viewerNote}>Viewer mode</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -320,6 +330,12 @@ const dangerBtn: CSSProperties = {
   fontWeight: 800,
   fontSize: 12,
   whiteSpace: "nowrap"
+};
+
+const viewerNote: CSSProperties = {
+  color: "#9aa3ad",
+  fontSize: 12,
+  lineHeight: 1.4
 };
 
 const toAlpha = (hex: string, alpha: number) => {

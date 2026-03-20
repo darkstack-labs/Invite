@@ -89,8 +89,8 @@ const navMeta: Record<
   },
   games_monitor: {
     icon: ShieldAlert,
-    eyebrow: "Governance",
-    copy: "Admin access, audit control, archive mode, and result finalization."
+    eyebrow: "Control room",
+    copy: "Governance, exports, audit control, archive mode, and admin access."
   }
 };
 
@@ -257,6 +257,13 @@ export default function AdminLayout({
               <Menu size={14} />
               Sections
             </button>
+
+            <div style={headerMetaWrap}>
+              <div style={headerMetaCard}>
+                <span style={headerMetaLabel}>Section</span>
+                <strong style={headerMetaValue}>{title}</strong>
+              </div>
+            </div>
 
             <button onClick={onLogout} style={{ ...logoutBtn, ...(isDesktop ? {} : logoutBtnMobile) }}>
               <LogOut size={14} />

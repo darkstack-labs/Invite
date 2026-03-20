@@ -155,6 +155,17 @@ type AdminRoleDoc = {
   timestamp?: { toDate?: () => Date };
 };
 
+const adminSectionConfig: Array<{ key: Section; label: string; title: string }> = [
+  { key: "overview", label: "Overview", title: "Admin Dashboard" },
+  { key: "rsvps", label: "RSVP Manager", title: "RSVP Manager" },
+  { key: "songs", label: "Song Requests", title: "Song Requests" },
+  { key: "suggestions", label: "Suggestions", title: "Guest Suggestions" },
+  { key: "activity", label: "Activity Monitor", title: "Activity Monitor" },
+  { key: "device_watch", label: "Device Watch", title: "Device Watch" },
+  { key: "games", label: "Games Votes", title: "Games Votes" },
+  { key: "games_monitor", label: "Control Room", title: "Control Room" }
+];
+
 export default function AdminDashboard(): JSX.Element {
   const { user } = useAuth();
 
@@ -164,10 +175,10 @@ export default function AdminDashboard(): JSX.Element {
 
   /* ---------------- DATA HOOKS ---------------- */
 
-  const rsvps = useRSVPs() ?? [];
-  const songs = useSongs() ?? [];
-  const suggestions = useSuggestions() ?? [];
-  const activityLogs = useActivityLogs() ?? [];
+  const rsvps = useRSVPs(authenticated) ?? [];
+  const songs = useSongs(authenticated) ?? [];
+  const suggestions = useSuggestions(authenticated) ?? [];
+  const activityLogs = useActivityLogs(authenticated) ?? [];
   const {
     selfNominations,
     cysVotes,
@@ -229,6 +240,8 @@ export default function AdminDashboard(): JSX.Element {
   const isSuperAdmin = currentEntryId === SUPER_ADMIN_ENTRY_ID;
   const isAdmin = isSuperAdmin || !!adminRoleMap[currentEntryId];
   const authBadge = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Viewer";
+  const activeSectionMeta =
+    adminSectionConfig.find((section) => section.key === activeSection) ?? adminSectionConfig[0];
   const mobileOverviewGrid = { ...overviewGrid, gridTemplateColumns: "1fr", gap: 12 };
   const mobilePanel = { ...panel, padding: 12 };
   const mobileActivityTable = { ...activityTable, minWidth: 640 };
@@ -919,6 +932,11 @@ export default function AdminDashboard(): JSX.Element {
     governanceState.finalized
   ]);
 
+  const shouldShowIncidentShortcut = useMemo(
+    () => ["overview", "activity", "device_watch", "games_monitor"].includes(activeSection),
+    [activeSection]
+  );
+
   useEffect(() => {
     let unsubEntries = () => {};
     let unsubDevices = () => {};
@@ -1473,40 +1491,25 @@ export default function AdminDashboard(): JSX.Element {
   if (!authenticated) {
     return (
       <div
-        style={{
-          height: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          background: "#0f0f0f",
-        }}
+        style={loginShell}
       >
-        <div
-          style={{
-            background: "#161616",
-            padding: 40,
-            borderRadius: 10,
-            width: 320,
-            color: "#fff",
-            textAlign: "center",
-          }}
-        >
-          <h2 style={{ marginBottom: 20 }}>Admin Login</h2>
+        <div style={loginGlowTop} aria-hidden="true" />
+        <div style={loginGlowBottom} aria-hidden="true" />
+        <div style={loginCard}>
+          <div style={loginHeader}>
+            <p style={loginEyebrow}>Invite Ops</p>
+            <h2 style={loginTitle}>Admin Command Access</h2>
+            <p style={loginCopy}>
+              Sign in with an allowed entry ID to review guests, moderation, devices, and game control.
+            </p>
+          </div>
 
           <input
             type="text"
             placeholder="Enter admin Entry ID"
             value={loginEntryId}
             onChange={(e) => setLoginEntryId(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              marginBottom: 10,
-              borderRadius: 6,
-              border: "1px solid #333",
-              background: "#111",
-              color: "#fff",
-            }}
+            style={loginInput}
           />
 
           <input
@@ -1514,28 +1517,11 @@ export default function AdminDashboard(): JSX.Element {
             placeholder="Enter admin password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              marginBottom: 20,
-              borderRadius: 6,
-              border: "1px solid #333",
-              background: "#111",
-              color: "#fff",
-            }}
+            style={loginInput}
           />
 
           <button
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 6,
-              border: "none",
-              background: "#f5b000",
-              color: "#111",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            style={loginButton}
             onClick={() => {
               const entryId = loginEntryId.trim();
               if (password !== ADMIN_PASSWORD) {
@@ -1560,6 +1546,17 @@ export default function AdminDashboard(): JSX.Element {
           >
             Login
           </button>
+
+          <div style={loginMetaRow}>
+            <div style={loginMetaCard}>
+              <span style={loginMetaLabel}>Access model</span>
+              <strong style={loginMetaValue}>Entry ID + password</strong>
+            </div>
+            <div style={loginMetaCard}>
+              <span style={loginMetaLabel}>Surface</span>
+              <strong style={loginMetaValue}>Admin only</strong>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1865,13 +1862,13 @@ export default function AdminDashboard(): JSX.Element {
                 style={searchInputStyle}
               />
             </div>
-            <RSVPTable guests={filteredGuests} />
+            <RSVPTable guests={filteredGuests} canManage={isAdmin} />
           </>
         );
       case "songs":
-        return <SongsTable songs={songs} onDelete={handleDeleteSong} />;
+        return <SongsTable songs={songs} onDelete={handleDeleteSong} canManage={isAdmin} />;
       case "suggestions":
-        return <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} />;
+        return <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} canManage={isAdmin} />;
       case "activity":
         return (
           <div style={mobilePage}>
@@ -2676,46 +2673,23 @@ export default function AdminDashboard(): JSX.Element {
   return (
     <>
       <AdminLayout
-        navItems={[
-          { key: "overview", label: "Overview" },
-          { key: "rsvps", label: "RSVP Manager" },
-          { key: "songs", label: "Song Requests" },
-          { key: "suggestions", label: "Suggestions" },
-          { key: "activity", label: "Activity Monitor" },
-          { key: "device_watch", label: "Device Watch" },
-          { key: "games", label: "Games Votes" },
-          { key: "games_monitor", label: "Admin Monitor" }
-        ]}
+        navItems={adminSectionConfig.map(({ key, label }) => ({ key, label }))}
         activeSection={activeSection}
         onSectionChange={setActiveSection}
-        title={
-          activeSection === "overview"
-            ? "Admin Dashboard"
-            : activeSection === "rsvps"
-              ? "RSVP Manager"
-              : activeSection === "songs"
-                ? "Song Requests"
-                : activeSection === "suggestions"
-                  ? "Guest Suggestions"
-                  : activeSection === "activity"
-                    ? "Activity Monitor"
-                    : activeSection === "device_watch"
-                      ? "Device Watch"
-                      : activeSection === "games"
-                        ? "Games Votes"
-                        : "Admin Monitor"
-        }
+        title={activeSectionMeta.title}
         subtitle={`Live data updates from Firestore • ${authBadge}`}
         statusItems={layoutStatusItems}
         onLogout={handleLogout}
       >
-        <button
-          type="button"
-          style={incidentFab}
-          onClick={() => setIncidentModeOpen(true)}
-        >
-          Incident Mode
-        </button>
+        {shouldShowIncidentShortcut && (
+          <button
+            type="button"
+            style={incidentFab}
+            onClick={() => setIncidentModeOpen(true)}
+          >
+            Incident Mode
+          </button>
+        )}
         {!isMobile && (
           <>
       {activeSection === "overview" && (
@@ -2991,12 +2965,12 @@ export default function AdminDashboard(): JSX.Element {
               style={searchInputStyle}
             />
           </div>
-          <RSVPTable guests={filteredGuests} />
+          <RSVPTable guests={filteredGuests} canManage={isAdmin} />
         </>
       )}
 
-      {activeSection === "songs" && <SongsTable songs={songs} onDelete={handleDeleteSong} />}
-      {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} />}
+      {activeSection === "songs" && <SongsTable songs={songs} onDelete={handleDeleteSong} canManage={isAdmin} />}
+      {activeSection === "suggestions" && <SuggestionsTable suggestions={suggestions} onDelete={handleDeleteSuggestion} canManage={isAdmin} />}
       {activeSection === "activity" && (
         <div style={{ display: "grid", gap: 16 }}>
           <section style={overviewGridStyle}>
@@ -5025,6 +4999,135 @@ const linkBtn: CSSProperties = {
   textDecoration: "underline",
   padding: 0,
   fontSize: 13
+};
+
+const loginShell: CSSProperties = {
+  minHeight: "100vh",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: 20,
+  background:
+    "radial-gradient(circle at top left, rgba(255,213,122,0.12) 0%, rgba(255,213,122,0) 28%), radial-gradient(circle at bottom right, rgba(124,196,255,0.1) 0%, rgba(124,196,255,0) 30%), linear-gradient(180deg, #090b0f 0%, #0c1016 35%, #090a0e 100%)",
+  position: "relative",
+  overflow: "hidden"
+};
+
+const loginGlowTop: CSSProperties = {
+  position: "absolute",
+  top: -100,
+  left: -60,
+  width: 280,
+  height: 280,
+  borderRadius: "50%",
+  background: "radial-gradient(circle, rgba(255,213,122,0.18) 0%, rgba(255,213,122,0) 72%)",
+  filter: "blur(10px)",
+  pointerEvents: "none"
+};
+
+const loginGlowBottom: CSSProperties = {
+  position: "absolute",
+  right: -80,
+  bottom: -120,
+  width: 320,
+  height: 320,
+  borderRadius: "50%",
+  background: "radial-gradient(circle, rgba(124,196,255,0.14) 0%, rgba(124,196,255,0) 72%)",
+  filter: "blur(12px)",
+  pointerEvents: "none"
+};
+
+const loginCard: CSSProperties = {
+  width: "min(420px, 100%)",
+  borderRadius: 24,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(10,12,16,0.9)",
+  boxShadow: "0 32px 64px rgba(0,0,0,0.34)",
+  padding: 28,
+  color: "#fff",
+  display: "grid",
+  gap: 14,
+  position: "relative",
+  zIndex: 1
+};
+
+const loginHeader: CSSProperties = {
+  display: "grid",
+  gap: 6
+};
+
+const loginEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#f5c768",
+  fontSize: 11,
+  letterSpacing: 1.2,
+  textTransform: "uppercase",
+  fontWeight: 800
+};
+
+const loginTitle: CSSProperties = {
+  margin: 0,
+  color: "#fff7df",
+  fontSize: 28,
+  lineHeight: 1.08
+};
+
+const loginCopy: CSSProperties = {
+  margin: 0,
+  color: "#aeb7c1",
+  fontSize: 13,
+  lineHeight: 1.55
+};
+
+const loginInput: CSSProperties = {
+  width: "100%",
+  padding: "12px 13px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.04)",
+  color: "#fff",
+  outline: "none"
+};
+
+const loginButton: CSSProperties = {
+  width: "100%",
+  padding: "12px 13px",
+  borderRadius: 12,
+  border: "none",
+  background: "linear-gradient(135deg, #ffd57a 0%, #f5b000 100%)",
+  color: "#111",
+  fontWeight: 800,
+  cursor: "pointer",
+  boxShadow: "0 18px 32px rgba(245,176,0,0.24)"
+};
+
+const loginMetaRow: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 10,
+  marginTop: 2
+};
+
+const loginMetaCard: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.03)",
+  padding: "11px 12px",
+  display: "grid",
+  gap: 5
+};
+
+const loginMetaLabel: CSSProperties = {
+  color: "#97a0aa",
+  fontSize: 10,
+  textTransform: "uppercase",
+  letterSpacing: 0.8
+};
+
+const loginMetaValue: CSSProperties = {
+  color: "#eef2f7",
+  fontSize: 13,
+  lineHeight: 1.35
 };
 
 const blockBtn = (blocked: boolean): CSSProperties => ({
