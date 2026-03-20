@@ -375,7 +375,10 @@ const sidebar: CSSProperties = {
   display: "grid",
   alignContent: "start",
   gap: 18,
-  boxShadow: "24px 0 60px rgba(0,0,0,0.24)"
+  boxShadow: "24px 0 60px rgba(0,0,0,0.24)",
+  height: "100vh",
+  overflowY: "auto",
+  overscrollBehavior: "contain"
 };
 
 const sidebarOpen: CSSProperties = {

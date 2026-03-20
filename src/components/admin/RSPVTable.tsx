@@ -25,7 +25,8 @@ export default function RSVPTable({
       total: guests.length,
       attending: guests.filter((guest) => guest.attendance === "yes").length,
       notAttending: guests.filter((guest) => guest.attendance !== "yes").length,
-      veg: guests.filter((guest) => guest.mealPreference === "veg").length
+      veg: guests.filter((guest) => guest.mealPreference === "veg").length,
+      nonVeg: guests.filter((guest) => guest.mealPreference === "nonveg").length
     }),
     [guests]
   );
@@ -59,6 +60,7 @@ export default function RSVPTable({
           <SummaryPill label="Attending" value={summary.attending} tone="#49d17d" />
           <SummaryPill label="Not Going" value={summary.notAttending} tone="#ff7b7b" />
           <SummaryPill label="Veg" value={summary.veg} tone="#b7df74" />
+          <SummaryPill label="Non-Veg" value={summary.nonVeg} tone="#ffb86b" />
         </div>
       </div>
 

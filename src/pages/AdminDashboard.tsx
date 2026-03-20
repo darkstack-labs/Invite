@@ -863,12 +863,7 @@ export default function AdminDashboard(): JSX.Element {
           { label: "Games Participation", value: `${gamesStats.participationRate}%` }
         ];
       case "rsvps":
-        return [
-          { label: "Guests", value: String(stats.total) },
-          { label: "Attending", value: String(stats.attending) },
-          { label: "Veg", value: String(stats.veg) },
-          { label: "Non-Veg", value: String(stats.nonVeg) }
-        ];
+        return [];
       case "songs":
         return [
           { label: "Requests", value: String(songs.length) },
